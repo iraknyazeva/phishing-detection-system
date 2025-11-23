@@ -41,7 +41,7 @@ def analyze_url_basic(url: str) -> dict:
         "domain_has_dash": domain_has_dash(hostname),
         "suspicious_tld": suspicious_tld(parsed),
     }
-    # Простая скоринговая метрика (0..1)
+   
     score = 0.0
     if result["has_ip"]: score += 0.3
     if result["uses_shortener"]: score += 0.25
@@ -53,34 +53,42 @@ def analyze_url_basic(url: str) -> dict:
     result["is_phishing_suspected"] = result["suspicion_score"] >= 0.5
     return result
 
-# Простейший EmailAnalyzer
+
 class EmailAnalyzer:
-    def __init__(self, raw_email_text: str = None, subject: str = None, from_addr: str = None, body: str = None):
-        self.raw = raw_email_text
-        self.subject = subject
-        self.from_addr = from_addr
-        self.body = body or ""
-    def analyze(self) -> dict:
-        # базовые эвристики
-        suspicious_phrases = ["verify your account", "update your payment", "click here", "confirm your identity"]
-        score = 0.0
-        findings = []
-        combined = " ".join(filter(None, [self.subject or "", self.body or ""])).lower()
-        for phrase in suspicious_phrases:
-            if phrase in combined:
-                findings.append(f"contains phrase: '{phrase}'")
-                score += 0.2
-        # обнаружение mismatched-from (простая проверка)
-        if self.from_addr and "@" in self.from_addr:
-            domain = self.from_addr.split("@", 1)[1]
-            if domain.endswith(".ru"):  # пример: допустим для твоего курса
-                findings.append("from country-specific TLD .ru")
-                score += 0.05
-        result = {
-            "subject": self.subject,
-            "from": self.from_addr,
-            "findings": findings,
-            "suspicion_score": min(1.0, score),
-            "is_phishing_suspected": score >= 0.5
-        }
+    def analyze(self, subject: str, sender: str, body: str) -> dict:
+
+        result = {}
+
+        suspicious_keywords = ["verify", "urgent", "account", "password", "click"]
+        score = 0
+
+        # Проверка темы
+        if any(word in subject.lower() for word in suspicious_keywords):
+            result["subject_flag"] = True
+            score += 1
+        else:
+            result["subject_flag"] = False
+
+        # Проверка отправителя
+        if not ("@" in sender and "." in sender):
+            result["sender_flag"] = True
+            score += 1
+        else:
+            result["sender_flag"] = False
+
+        # Проверка текста письма
+        if any(word in body.lower() for word in suspicious_keywords):
+            result["body_flag"] = True
+            score += 1
+        else:
+            result["body_flag"] = False
+
+        # Итоговый вердикт
+        if score == 0:
+            result["verdict"] = "Безопасно"
+        elif score == 1:
+            result["verdict"] = "Подозрительно"
+        else:
+            result["verdict"] = "Фишинг"
+
         return result

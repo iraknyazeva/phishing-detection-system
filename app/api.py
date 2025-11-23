@@ -1,18 +1,22 @@
 from fastapi import FastAPI, HTTPException, Request, Form
 from pydantic import BaseModel, HttpUrl
 from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi import status
 from fastapi.templating import Jinja2Templates
 from analyzers import analyze_url_basic, EmailAnalyzer
 
-app = FastAPI(title="Phishing Warning System — API Хайдарова",
-              description="Простейший API для анализа URL и email на признаки фишинга",
+
+app = FastAPI(title="Phishing Warning System — API",
+              description="API для анализа URL и email на признаки фишинга",
               version="0.1.0")
 
 templates = Jinja2Templates(directory="app/templates")
 
+
 # --- моделей запросов/ответов ---
 class URLRequest(BaseModel):
-    url: HttpUrl  # pydantic проверит, что это корректный URL
+    url: HttpUrl  
 
 class URLAnalysisResponse(BaseModel):
     url: str
@@ -33,12 +37,18 @@ class EmailAnalysisResponse(BaseModel):
     is_phishing_suspected: bool
     findings: list
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
+
 # --- /analyze/url ---
 @app.post("/analyze/url", response_model=URLAnalysisResponse, summary="Анализ URL", tags=["url"])
 async def analyze_url(payload: URLRequest):
     try:
         result = analyze_url_basic(payload.url)
-        # вернём компактную структуру: details — все поля кроме высшего уровня
         details = {k: v for k, v in result.items() if k not in {"url","suspicion_score","is_phishing_suspected","hostname"}}
         return {
             "url": result["url"],
@@ -48,8 +58,8 @@ async def analyze_url(payload: URLRequest):
             "details": details
         }
     except Exception as e:
-        # общая обработка ошибок
         raise HTTPException(status_code=500, detail=f"Ошибка анализа URL: {str(e)}")
+
 
 # --- /analyze/email ---
 @app.post("/analyze/email", response_model=EmailAnalysisResponse, summary="Анализ email", tags=["email"])
@@ -68,6 +78,6 @@ async def analyze_email(payload: EmailRequest):
         raise HTTPException(status_code=500, detail=f"Ошибка анализа email: {str(e)}")
 
 # --- Веб-страница / ---
-@app.get("/", response_class=HTMLResponse, summary="Проверка URL (веб-страница)")
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+@app.get("/", summary="Форма проверки URL")
+def index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request, "result": None})
