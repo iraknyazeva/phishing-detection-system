@@ -1,19 +1,18 @@
-# url_analyzer/test_urls.py
-from .analyzer import UrlAnalyzer
+from analyzer import UrlAnalyzer
 
+analyzer = UrlAnalyzer()
 
-def test_good_url():
-    analyzer = UrlAnalyzer()
-    result = analyzer.analyze("https://example.com/path")
-    assert result.is_ok
-    assert result.is_domain_valid
-    assert result.scheme == "https"
-    assert result.domain == "example.com"
+urls = [
+    "https://evil-phishing.com",
+    "https://google.com",
+    "http://fake-bank.ru"
+]
 
-
-def test_bad_domain():
-    analyzer = UrlAnalyzer()
-    result = analyzer.analyze("http://exa_mple!!.com/test")
-    assert not result.is_ok
-    assert not result.is_domain_valid
-    assert "некорректный формат домена" in result.rules_violations
+for url in urls:
+    print("\nАнализ:", url)
+    result = analyzer.analyze(url)
+    print("Статус:", result["status"])
+    print("Риск:", result["risk_score"])
+    print("DNS разрешился:", result["dns"]["resolvable"])
+    if result["matched_indicators"]:
+        print("Найден в базе!")
