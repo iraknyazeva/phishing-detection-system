@@ -2,8 +2,8 @@
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional, Dict, Any
 import logging
-from app.models.url_analysis import URLAnalysisResult
-from app.models.email_analysis import EmailAnalysisResult
+from database.models import URLAnalysisResult
+from database.models.email_analysis import EmailAnalysisResult
 
 logger = logging.getLogger(__name__)
 

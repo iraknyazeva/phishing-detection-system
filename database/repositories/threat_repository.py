@@ -1,8 +1,9 @@
 ﻿from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 import logging
-from app.models.indicator import Indicator
+from database.models.indicator import Indicator
+
 
 logger = logging.getLogger(__name__)
 

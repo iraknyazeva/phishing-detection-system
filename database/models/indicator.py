@@ -1,6 +1,6 @@
 ﻿from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, Float, JSON
 from sqlalchemy.sql import func
-from app.database import Base
+from database.database import Base
 
 class Indicator(Base):
     __tablename__ = "indicators"
