@@ -4,7 +4,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from database.database import create_tables, SessionLocal
-from app.repositories.threat_repository import ThreatRepository
+from database.repositories.threat_repository import ThreatRepository
 
 class TestDatabase:
     def setup_method(self):

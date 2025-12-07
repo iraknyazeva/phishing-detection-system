@@ -2,7 +2,8 @@
 from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Optional
 import logging
-from database.models import Indicator
+from database.models.indicator import Indicator
+
 
 logger = logging.getLogger(__name__)
 
