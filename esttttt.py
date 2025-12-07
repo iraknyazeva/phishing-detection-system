@@ -3,5 +3,5 @@ import json
 
 an = UrlAnalyzer()
 
-res = an.analyze("https://example.com")
+res = an.analyze("https://vk.com")
 print(json.dumps(res, indent=2, ensure_ascii=False))

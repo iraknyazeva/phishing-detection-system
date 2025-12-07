@@ -8,7 +8,7 @@ from .dns_checker import check_dns
 from .url_features import extract_url_features
 from .risk_engine import RiskEngine
 
-DB_PATH = "phishing.db"
+DB_PATH = "database/phishing.db"
 
 
 class UrlAnalyzer:
@@ -34,7 +34,7 @@ class UrlAnalyzer:
         cur = self.conn.cursor()
         cur.execute(
             """
-            SELECT * FROM indicator
+            SELECT * FROM indicators
             WHERE type = 'domain'
               AND value = ?
               AND is_active = 1
