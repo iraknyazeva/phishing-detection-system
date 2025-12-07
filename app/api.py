@@ -1,10 +1,12 @@
-from fastapi import FastAPI, HTTPException, Request, Form
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, HttpUrl
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi import status
 from fastapi.templating import Jinja2Templates
-from analyzers import analyze_url_basic, EmailAnalyzer
+
+from analyzers.url_analyzer import analyze_url_basic
+from analyzers.email_analyzer import EmailAnalyzer
 
 
 app = FastAPI(title="Phishing Warning System — API",
@@ -25,14 +27,17 @@ class URLAnalysisResponse(BaseModel):
     is_phishing_suspected: bool
     details: dict
 
+from typing import Optional
+
 class EmailRequest(BaseModel):
-    subject: str | None = None
-    from_addr: str | None = None
-    body: str | None = None
+    subject: Optional[str] = None
+    from_addr: Optional[str] = None
+    body: Optional[str] = None
+
 
 class EmailAnalysisResponse(BaseModel):
-    subject: str | None
-    from_addr: str | None
+    subject: Optional[str]
+    from_addr: Optional[str]
     suspicion_score: float
     is_phishing_suspected: bool
     findings: list
@@ -61,21 +66,22 @@ async def analyze_url(payload: URLRequest):
         raise HTTPException(status_code=500, detail=f"Ошибка анализа URL: {str(e)}")
 
 
-# --- /analyze/email ---
 @app.post("/analyze/email", response_model=EmailAnalysisResponse, summary="Анализ email", tags=["email"])
 async def analyze_email(payload: EmailRequest):
     try:
-        analyzer = EmailAnalyzer(subject=payload.subject, from_addr=payload.from_addr, body=payload.body)
-        result = analyzer.analyze()
+        analyzer = EmailAnalyzer()
+        result = analyzer.analyze(payload.subject, payload.from_addr, payload.body)
+
         return {
-            "subject": result.get("subject"),
-            "from_addr": result.get("from"),
+            "subject": payload.subject,
+            "from_addr": payload.from_addr,
             "suspicion_score": result.get("suspicion_score"),
             "is_phishing_suspected": result.get("is_phishing_suspected"),
             "findings": result.get("findings", [])
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка анализа email: {str(e)}")
+
 
 # --- Веб-страница / ---
 @app.get("/", summary="Форма проверки URL")
