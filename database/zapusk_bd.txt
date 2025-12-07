@@ -1,0 +1,3 @@
+python -m database.init_db
+python -m database.create_admin
+python -m database.database
