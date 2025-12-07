@@ -1,4 +1,4 @@
-# email_analyzer/analyzer.py
+# email_analyzer/analyzer_star.py
 from dataclasses import dataclass, field
 from email import message_from_string
 from email.message import Message
