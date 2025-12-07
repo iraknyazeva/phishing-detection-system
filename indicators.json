@@ -1,0 +1,118 @@
+[
+  {
+    "type": "domain",
+    "value": "evil-phishing.com",
+    "risk_score": 10,
+    "description": "Известный фишинговый домен (PhishTank + ручная проверка)",
+    "category": "phishing",
+    "source": "manual",
+    "confidence": 1.0,
+    "tags": ["banking", "ru-language"],
+    "tlp_level": "amber"
+  },
+  {
+    "type": "domain",
+    "value": "fake-sber.ru",
+    "risk_score": 9,
+    "description": "Поддельный сайт Сбербанка",
+    "category": "phishing",
+    "source": "manual",
+    "confidence": 0.98
+  },
+  {
+    "type": "domain",
+    "value": "update-account-microsoft.com",
+    "risk_score": 10,
+    "description": "Фишинг под Microsoft",
+    "category": "phishing",
+    "source": "manual"
+  },
+  {
+    "type": "domain",
+    "value": "steam-powered-nitro.com",
+    "risk_score": 8,
+    "description": "Фишинг под Steam (раздача Nitro)",
+    "category": "phishing",
+    "source": "manual"
+  },
+  {
+    "type": "url",
+    "value": "http://194.87.62.123/login",
+    "risk_score": 10,
+    "description": "Прямой IP в URL — классический фишинг",
+    "category": "phishing",
+    "source": "manual"
+  },
+  {
+    "type": "url",
+    "value": "https://sberbank.ru.обновление-сессии.com",
+    "risk_score": 9,
+    "description": "Попытка подмены через кириллицу и поддомен",
+    "category": "phishing",
+    "source": "manual"
+  },
+  {
+    "type": "ip",
+    "value": "185.63.252.148",
+    "risk_score": 8,
+    "description": "IP из известного фишинг-хостинга (RU)",
+    "category": "phishing",
+    "source": "manual"
+  },
+  {
+    "type": "keyword",
+    "value": "срочно обновите пароль",
+    "risk_score": 6,
+    "description": "Типичная фишинговая фраза",
+    "category": "suspicious",
+    "source": "manual"
+  },
+  {
+    "type": "keyword",
+    "value": "ваш аккаунт заблокирован",
+    "risk_score": 7,
+    "description": "Создание паники — классика фишинга",
+    "category": "suspicious",
+    "source": "manual"
+  },
+  {
+    "type": "keyword",
+    "value": "подтвердите вход с нового устройства",
+    "risk_score": 5,
+    "description": "Часто используется в фишинге под Google/VK",
+    "category": "suspicious",
+    "source": "manual"
+  },
+  {
+    "type": "email",
+    "value": "no-reply-security@account-protect.com",
+    "risk_score": 7,
+    "description": "Подозрительный email-отправитель",
+    "category": "suspicious",
+    "source": "manual"
+  },
+  {
+    "type": "domain",
+    "value": "paypal-security.com",
+    "risk_score": 10,
+    "description": "Фейковый PayPal",
+    "category": "phishing",
+    "source": "manual"
+  },
+  {
+    "type": "domain",
+    "value": "amazon.co.uk.refund-verification.xyz",
+    "risk_score": 9,
+    "description": "Фишинг под Amazon",
+    "category": "phishing",
+    "source": "manual"
+  },
+  {
+    "type": "hash",
+    "value": "a1b2c3d4e5f67890123456789abcdef1234567890abcdef1234567890abcdef12",
+    "risk_score": 10,
+    "description": "SHA256 вредоносного вложения (пример)",
+    "category": "malware",
+    "source": "manual"
+  }
+]
