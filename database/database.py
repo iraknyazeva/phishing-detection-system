@@ -25,18 +25,19 @@ def get_db():
         db.close()
 
 def create_tables():
+    # 1️⃣ СНАЧАЛА импортируем все модули с моделями
+    from database.models import (
+        user,
+        indicator,
+        url_analysis,
+        email_analysis,
+        external_feeds,
+        system_logs,
+        notifications,
+        settings,
+        analysis_sessions,
+        risk_rules,
+    )
 
-    # ТОЛЬКО ПОСЛЕ Base импортируем ВСЕ модели
-    # (порядок не важен — главное после Base!)
-    from database.models.user import User
-    from database.models.indicator import Indicator
-    from database.models.url_analysis import URLAnalysisResult
-    from database.models.email_analysis import EmailAnalysisResult
-    from database.models.external_feeds import ExternalFeed
-    from database.models.system_logs import SystemLog
-    from database.models.notifications import Notification
-    from database.models.settings import SystemSetting
-    from database.models.analysis_sessions import AnalysisSession
-    from database.models.risk_rules import RiskRule
-
-Base.metadata.create_all(bind=engine)
+    # 2️⃣ И только потом создаём таблицы
+    Base.metadata.create_all(bind=engine)
