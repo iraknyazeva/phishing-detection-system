@@ -30,10 +30,16 @@ class UrlAnalyzer:
             ssl_info = check_ssl(domain)
         whois_info = check_whois(domain)
 
-        # 3. Индикаторы из БД (чёрный список доменов)
+        # 3. Индикаторы из БД (чёрный / серый список доменов)
         cur = self.conn.cursor()
         cur.execute(
-            "SELECT * FROM indicators WHERE type = 'domain' AND value = ?",
+            """
+            SELECT * FROM indicators
+            WHERE type = 'domain'
+              AND value = ?
+              AND is_active = 1
+              AND is_whitelisted = 0
+            """,
             (domain,),
         )
         indicators = [dict(row) for row in cur.fetchall()]
@@ -57,6 +63,10 @@ class UrlAnalyzer:
 
         # Индикаторы
         features["indicator_count"] = len(indicators)
+        features["indicator_max_risk"] = max(
+            (ind.get("risk_score", 0) for ind in indicators),
+            default=0,
+        )
 
         # 5. Оценка риска по правилам из risk_rules
         risk_score, status = self.risk_engine.calculate(features, applies_to="url")
