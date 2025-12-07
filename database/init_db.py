@@ -1,6 +1,6 @@
-﻿from app.database import create_tables, SessionLocal
+﻿from database.database import create_tables, SessionLocal
 from app.repositories.threat_repository import ThreatRepository
-from app.models.settings import SystemSetting
+from database.database import SystemSetting
 
 def init_database():
     # 1️⃣ Создаём таблицы

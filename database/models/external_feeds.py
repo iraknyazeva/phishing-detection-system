@@ -1,6 +1,6 @@
 ﻿from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, JSON
 from sqlalchemy.sql import func
-from app.database import Base
+from database.database import Base
 
 class ExternalFeed(Base):
     __tablename__ = "external_feeds"

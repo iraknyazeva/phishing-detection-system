@@ -1,7 +1,7 @@
 import json
 import sqlite3
 
-DB_PATH = 'phishing.db'
+DB_PATH = 'database/phishing.db'
 
 
 def load_indicators_from_json(file_path='indicators.json'):
