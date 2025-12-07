@@ -34,7 +34,7 @@ class UrlAnalyzer:
         cur = self.conn.cursor()
         cur.execute(
             """
-            SELECT * FROM indicators
+            SELECT * FROM indicator
             WHERE type = 'domain'
               AND value = ?
               AND is_active = 1
