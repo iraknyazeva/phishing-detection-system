@@ -11,9 +11,12 @@ engine = create_engine(
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Сначала создаём Base
 Base = declarative_base()
 metadata = MetaData()
 
+# Функции
 def get_db():
     db = SessionLocal()
     try:
@@ -24,7 +27,9 @@ def get_db():
 def create_tables():
     Base.metadata.create_all(bind=engine)
 
-# Импорты всех моделей для создания таблиц
+# ТОЛЬКО ПОСЛЕ Base импортируем ВСЕ модели
+# (порядок не важен — главное после Base!)
+from app.models.user import User
 from app.models.indicator import Indicator
 from app.models.url_analysis import URLAnalysisResult
 from app.models.email_analysis import EmailAnalysisResult
@@ -32,3 +37,5 @@ from app.models.external_feeds import ExternalFeed
 from app.models.system_logs import SystemLog
 from app.models.notifications import Notification
 from app.models.settings import SystemSetting
+from app.models.analysis_sessions import AnalysisSession
+from app.models.risk_rules import RiskRule
