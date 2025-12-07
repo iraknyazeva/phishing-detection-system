@@ -1,16 +1,20 @@
 # url_analyzer/ssl_checker.py
-import socket
 import ssl
 from datetime import datetime
 from typing import Dict, Any
 
+import OpenSSL
+
 
 def check_ssl(domain: str) -> Dict[str, Any]:
     """
-    Упрощённая проверка SSL:
-    - НЕ проверяет цепочку доверия (CA), чтобы не падать на CERTIFICATE_VERIFY_FAILED
-    - Смотрит только срок действия сертификата
-    - Считает сертификат валидным, если он вообще есть и не истёк
+    Проверка SSL через ssl.get_server_certificate + pyOpenSSL.
+
+    Что делаем:
+    - запрашиваем реальный сертификат у сервера
+    - парсим его через OpenSSL
+    - считаем, сколько дней осталось
+    - если сертификат есть и не истёк -> valid = True
     """
 
     result: Dict[str, Any] = {
@@ -21,30 +25,21 @@ def check_ssl(domain: str) -> Dict[str, Any]:
     }
 
     try:
-        # Контекст БЕЗ проверки цепочки и имени хоста
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-
-        with socket.create_connection((domain, 443), timeout=5) as sock:
-            with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
-                cert = ssock.getpeercert()
-
-        if not cert:
-            result["error"] = "no cert returned"
+        # Получаем PEM-сертификат (без проверки цепочки доверия)
+        pem_cert = ssl.get_server_certificate((domain, 443))
+        if not pem_cert:
+            result["error"] = "empty pem from get_server_certificate"
             return result
 
-        # notAfter в формате типа "Jun 10 12:00:00 2025 GMT"
-        not_after = cert.get("notAfter")
-        if not not_after:
-            result["error"] = "no notAfter in cert"
-            return result
+        # Парсим сертификат через OpenSSL
+        cert = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            pem_cert.encode("utf-8"),
+        )
 
-        try:
-            expires = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z")
-        except Exception as e:
-            result["error"] = f"parse notAfter failed: {e}"
-            return result
+        # Достаём дату окончания
+        not_after = cert.get_notAfter().decode("ascii")  # формат: YYYYMMDDHHMMSSZ
+        expires = datetime.strptime(not_after, "%Y%m%d%H%M%SZ")
 
         now = datetime.utcnow()
         delta = expires - now
@@ -55,7 +50,7 @@ def check_ssl(domain: str) -> Dict[str, Any]:
         result["valid"] = days_left > 0
 
     except Exception as e:
-        # Не валим систему, просто сохраняем ошибку
+        # Если что-то пошло не так — пишем ошибку, но НЕ валим программу
         result["error"] = str(e)
 
     return result
