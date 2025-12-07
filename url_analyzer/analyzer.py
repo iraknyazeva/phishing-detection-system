@@ -1,8 +1,11 @@
+# url_analyzer/analyzer.py
 import sqlite3
 from typing import Any, Dict
 
-from .domain_analyzer import analyze_domain
-from .page_analyzer import analyze_page
+from .ssl_checker import check_ssl
+from .whois_checker import check_whois
+from .dns_checker import check_dns
+from .url_features import extract_url_features
 from .risk_engine import RiskEngine
 
 DB_PATH = "phishing.db"
@@ -10,51 +13,63 @@ DB_PATH = "phishing.db"
 
 class UrlAnalyzer:
     def __init__(self):
-        # Простое подключение к SQLite
         self.conn = sqlite3.connect(DB_PATH)
         self.conn.row_factory = sqlite3.Row
         self.risk_engine = RiskEngine(self.conn)
 
     def analyze(self, url: str) -> Dict[str, Any]:
-        """
-        Главный метод анализа URL.
-        Собирает признаки из подмодулей и считает риск по правилам из таблицы risk_rules.
-        """
+        # 1. Фичи из самого URL (строка, домен, длины и т.п.)
+        url_info = extract_url_features(url)
+        domain = url_info["domain"]
+        scheme = url_info["scheme"]
 
-        # 1. Анализ домена, DNS/SSL/WHOIS и базовых URL-правил
-        domain_info = analyze_domain(url)
-        domain = domain_info["domain"]
+        # 2. Низкоуровневые проверки
+        dns_info = check_dns(domain)
+        ssl_info: Dict[str, Any] = {}
+        if scheme == "https":
+            ssl_info = check_ssl(domain)
+        whois_info = check_whois(domain)
 
-        # 2. Анализ HTML-страницы (если не получится скачать — вернёт error и пустые фичи)
-        page_info = analyze_page(url)
-
-        # 3. Поиск индикаторов в БД
+        # 3. Индикаторы из БД (чёрный список доменов)
         cur = self.conn.cursor()
         cur.execute(
-            "SELECT * FROM indicators WHERE type='domain' AND value=?",
+            "SELECT * FROM indicators WHERE type = 'domain' AND value = ?",
             (domain,),
         )
         indicators = [dict(row) for row in cur.fetchall()]
 
-        # 4. Собираем все признаки для RiskEngine
+        # 4. Собираем общий словарь features для RiskEngine
         features: Dict[str, Any] = {}
-        features.update(domain_info.get("features", {}))
-        features.update(page_info.get("features", {}))
+
+        # URL-признаки
+        features.update(url_info["features"])
+
+        # DNS-признаки
+        features["dns_resolvable"] = dns_info.get("resolvable", False)
+        features["dns_ping_success"] = dns_info.get("ping_success", False)
+
+        # SSL-признаки
+        features["ssl_valid"] = ssl_info.get("valid", False) if ssl_info else False
+        features["ssl_days_left"] = ssl_info.get("days_left", 0) if ssl_info else 0
+
+        # WHOIS-признаки
+        features["whois_age_days"] = whois_info.get("age_days", 0)
+
+        # Индикаторы
         features["indicator_count"] = len(indicators)
 
-        # 5. Считаем итоговый риск по правилам из таблицы risk_rules
+        # 5. Оценка риска по правилам из risk_rules
         risk_score, status = self.risk_engine.calculate(features, applies_to="url")
 
-        # 6. Финальный результат
-        result = {
+        # 6. Возвращаем всё в одном объекте
+        return {
             "url": url,
             "domain": domain,
             "risk_score": round(risk_score, 1),
             "status": status,
-            "features": features,              # удобно смотреть, что сработало
-            "domain_analysis": domain_info,    # DNS/SSL/WHOIS/URL-правила
-            "page_analysis": page_info,        # HTML-страница
-            "matched_indicators": indicators,  # что нашли в таблице indicators
+            "features": features,
+            "dns": dns_info,
+            "ssl": ssl_info,
+            "whois": whois_info,
+            "matched_indicators": indicators,
         }
-
-        return result

@@ -9,18 +9,13 @@ STATUS_ORDER = ["clean", "suspicious", "malicious"]
 
 class RiskEngine:
     """
-    Считает итоговый risk_score и статус на основе признаков (features)
-    и правил из таблицы risk_rules.
+    Берёт features + правила из таблицы risk_rules и считает risk_score и статус.
     """
 
     def __init__(self, conn: sqlite3.Connection):
         self.conn = conn
 
     def _load_rules(self, applies_to: str) -> list[Dict[str, Any]]:
-        """
-        Загружаем все активные правила для заданного типа объекта
-        (url / email / both).
-        """
         cur = self.conn.cursor()
         cur.execute(
             """
@@ -32,7 +27,6 @@ class RiskEngine:
             (applies_to,),
         )
         rows = cur.fetchall()
-        # sqlite row -> dict
         return [dict(row) for row in rows]
 
     def _max_status(self, current: str, new: str | None) -> str:
@@ -42,7 +36,6 @@ class RiskEngine:
             if STATUS_ORDER.index(new) > STATUS_ORDER.index(current):
                 return new
         except ValueError:
-            # если в БД записали что-то странное — игнорируем
             pass
         return current
 
@@ -67,7 +60,6 @@ class RiskEngine:
             num = float(value)
             thr = float(rule_val) if rule_val is not None else 0.0
         except (TypeError, ValueError):
-            # если не смогли привести к числу — правило не срабатывает
             return False
 
         if op == "lt":
@@ -88,10 +80,6 @@ class RiskEngine:
         features: Dict[str, Any],
         applies_to: str = "url",
     ) -> Tuple[float, str]:
-        """
-        features – словарь вида {"whois_age_days": 10, "ssl_valid": False, ...}
-        applies_to – "url" или "email".
-        """
         rules = self._load_rules(applies_to)
         score = 0.0
         status = "clean"
@@ -101,7 +89,7 @@ class RiskEngine:
                 score += float(rule["risk_points"])
                 status = self._max_status(status, rule.get("status_override"))
 
-        # Fallback, если ни одно правило не подняло статус
+        # Fallback, если статус не выставили
         if status == "clean":
             if score >= 7:
                 status = "malicious"
