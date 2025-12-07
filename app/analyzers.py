@@ -5,24 +5,30 @@ SHORTENER_DOMAINS = {
     "bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "is.gd"
 }
 
+
 def is_shortener(domain: str) -> bool:
     return domain.lower() in SHORTENER_DOMAINS
+
 
 def has_ip_address_netloc(parsed):
     # netloc like 192.168.0.1 or [2001:db8::1]
     host = parsed.hostname or ""
     return bool(re.match(r"^\d{1,3}(\.\d{1,3}){3}$", host)) or ":" in host and "[" not in host
 
+
 def count_suspicious_chars(url: str):
     return sum(1 for c in url if c in "@!$%*()[]{}\\<>")
 
+
 def domain_has_dash(domain: str):
     return "-" in (domain or "")
+
 
 def suspicious_tld(parsed):
     # очень простой пример — список можно расширять
     tld = (parsed.hostname or "").split(".")[-1]
     return tld in {"xyz", "top", "loan", "review"}
+
 
 def analyze_url_basic(url: str) -> dict:
     parsed = urlparse(url)
@@ -41,7 +47,7 @@ def analyze_url_basic(url: str) -> dict:
         "domain_has_dash": domain_has_dash(hostname),
         "suspicious_tld": suspicious_tld(parsed),
     }
-   
+
     score = 0.0
     if result["has_ip"]: score += 0.3
     if result["uses_shortener"]: score += 0.25
