@@ -1,65 +1,375 @@
-<!-- app/templates/index.html -->
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Проверка URL — Система предостережения фишинга</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>Проверка URL и EML</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+
+    h1, h2 {
+      margin-top: 0;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #020617;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.6);
+      border: 1px solid #1e293b;
+    }
+
+    .section {
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .section:last-of-type {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+      align-items: center;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #020617;
+      color: #e5e7eb;
+    }
+
+    input[type="file"] {
+      color: #e5e7eb;
+    }
+
+    button {
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: none;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      background: #475569;
+      cursor: default;
+      transform: none;
+    }
+
+    .result-card {
+      padding: 12px 14px;
+      border-radius: 10px;
+      background: #020617;
+      border: 1px solid #1e293b;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-right: 8px;
+    }
+
+    .status-clean {
+      background: rgba(22, 163, 74, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.6);
+    }
+
+    .status-suspicious {
+      background: rgba(234, 179, 8, 0.15);
+      color: #facc15;
+      border: 1px solid rgba(234, 179, 8, 0.6);
+    }
+
+    .status-malicious {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.6);
+    }
+
+    .result-header {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .result-header span {
+      font-size: 13px;
+      color: #9ca3af;
+    }
+
+    .json-toggle {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #60a5fa;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .json-block {
+      margin-top: 8px;
+      padding: 8px;
+      border-radius: 8px;
+      background: #020617;
+      border: 1px solid #111827;
+      max-height: 300px;
+      overflow: auto;
+      font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .error {
+      color: #f97373;
+      margin-top: 6px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        padding: 16px;
+      }
+      form {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      button {
+        width: 100%;
+      }
+    }
+  </style>
 </head>
-<body class="bg-light">
-  <div class="container py-5">
-    <h1 class="mb-4">Проверка URL на признаки фишинга</h1>
+<body>
+<div class="container">
+  <h1>Проверка фишинга</h1>
 
-    <form id="urlForm" class="mb-4">
-      <div class="mb-3">
-        <label for="urlInput" class="form-label">Введите URL</label>
-        <input type="url" class="form-control" id="urlInput" placeholder="https://example.com/login" required>
-      </div>
-      <button type="submit" class="btn btn-primary">Проверить</button>
+  <div class="section">
+    <h2>Проверка URL</h2>
+    <form id="url-form">
+      <input type="text" name="url" id="url-input" placeholder="https://example.com" size="50">
+      <button type="submit" id="url-btn">Проверить</button>
     </form>
-
-    <div id="resultArea" class="mt-4"></div>
+    <div id="url-error" class="error"></div>
+    <div id="url-result" class="result-card" style="display: none;"></div>
   </div>
 
-  <script>
-    const form = document.getElementById('urlForm');
-    const resultArea = document.getElementById('resultArea');
+  <div class="section">
+    <h2>Проверка письма (EML)</h2>
+    <form id="email-form" enctype="multipart/form-data">
+      <input type="file" name="file" id="eml-file" accept=".eml">
+      <button type="submit" id="email-btn">Проверить</button>
+    </form>
+    <div id="email-error" class="error"></div>
+    <div id="email-result" class="result-card" style="display: none;"></div>
+  </div>
+</div>
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      resultArea.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Загрузка...</span></div> Анализ...';
-      const url = document.getElementById('urlInput').value;
-      try {
-        const resp = await fetch('/analyze/url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
-        });
-        if (!resp.ok) {
-          const err = await resp.json();
-          resultArea.innerHTML = `<div class="alert alert-danger">Ошибка: ${err.detail || resp.statusText}</div>`;
-          return;
-        }
-        const data = await resp.json();
-    
-        const score = Math.round((data.suspicion_score || 0) * 100);
-        const verdictClass = data.is_phishing_suspected ? 'danger' : 'success';
-        resultArea.innerHTML = `
-          <div class="card">
-            <div class="card-body">
-              <h5 class="card-title">Результат анализа: <span class="badge bg-${verdictClass}">${data.is_phishing_suspected ? 'Подозрительно' : 'Нормально'}</span></h5>
-              <p><strong>URL:</strong> <a href="${data.url}" target="_blank" rel="noopener noreferrer">${data.url}</a></p>
-              <p><strong>Хост:</strong> ${data.hostname}</p>
-              <p><strong>Оценка подозрительности:</strong> ${score}%</p>
-              <pre style="white-space:pre-wrap; background:#f8f9fa; padding:10px; border-radius:6px;">${JSON.stringify(data.details, null, 2)}</pre>
-            </div>
-          </div>
-        `;
-      } catch (err) {
-        resultArea.innerHTML = `<div class="alert alert-danger">Ошибка сети: ${err.message}</div>`;
-      }
+<script>
+  function statusToLabel(status) {
+    switch (status) {
+      case "clean":
+        return "Безопасно";
+      case "suspicious":
+        return "Подозрительно";
+      case "malicious":
+        return "Опасно";
+      default:
+        return status;
+    }
+  }
+
+  function statusToClass(status) {
+    switch (status) {
+      case "clean":
+        return "status-clean";
+      case "suspicious":
+        return "status-suspicious";
+      case "malicious":
+        return "status-malicious";
+      default:
+        return "";
+    }
+  }
+
+  function renderResult(container, data, title) {
+    container.style.display = "block";
+    container.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.className = "result-header";
+
+    const badge = document.createElement("span");
+    badge.className = "status-badge " + statusToClass(data.status);
+    badge.textContent = statusToLabel(data.status);
+
+    const score = document.createElement("span");
+    score.textContent = `Риск: ${data.risk_score}`;
+
+    header.appendChild(badge);
+    header.appendChild(score);
+    container.appendChild(header);
+
+    if (data.url) {
+      const urlLine = document.createElement("div");
+      urlLine.style.fontSize = "13px";
+      urlLine.textContent = `URL: ${data.url}`;
+      container.appendChild(urlLine);
+    }
+
+    if (data.headers && data.headers.subject) {
+      const subjLine = document.createElement("div");
+      subjLine.style.fontSize = "13px";
+      subjLine.textContent = `Тема письма: ${data.headers.subject}`;
+      container.appendChild(subjLine);
+    }
+
+    const toggle = document.createElement("div");
+    toggle.className = "json-toggle";
+    toggle.textContent = "Показать подробный JSON-результат";
+
+    const jsonBlock = document.createElement("pre");
+    jsonBlock.className = "json-block";
+    jsonBlock.style.display = "none";
+    jsonBlock.textContent = JSON.stringify(data, null, 2);
+
+    toggle.addEventListener("click", () => {
+      const visible = jsonBlock.style.display === "block";
+      jsonBlock.style.display = visible ? "none" : "block";
+      toggle.textContent = visible
+        ? "Показать подробный JSON-результат"
+        : "Скрыть подробный JSON-результат";
     });
-  </script>
+
+    container.appendChild(toggle);
+    container.appendChild(jsonBlock);
+  }
+
+  async function handleUrlSubmit(e) {
+    e.preventDefault();
+    const urlInput = document.getElementById("url-input");
+    const urlBtn = document.getElementById("url-btn");
+    const result = document.getElementById("url-result");
+    const error = document.getElementById("url-error");
+
+    error.textContent = "";
+    result.style.display = "none";
+
+    if (!urlInput.value.trim()) {
+      error.textContent = "Введите URL для проверки.";
+      return;
+    }
+
+    urlBtn.disabled = true;
+    urlBtn.textContent = "Проверка...";
+
+    try {
+      const formData = new FormData();
+      formData.append("url", urlInput.value.trim());
+
+      const resp = await fetch("/analyze/url", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Ошибка сервера: ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      renderResult(result, data, "URL");
+    } catch (err) {
+      error.textContent = "Ошибка при отправке запроса: " + err.message;
+    } finally {
+      urlBtn.disabled = false;
+      urlBtn.textContent = "Проверить";
+    }
+  }
+
+  async function handleEmailSubmit(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById("eml-file");
+    const emailBtn = document.getElementById("email-btn");
+    const result = document.getElementById("email-result");
+    const error = document.getElementById("email-error");
+
+    error.textContent = "";
+    result.style.display = "none";
+
+    if (!fileInput.files.length) {
+      error.textContent = "Выберите .eml файл для проверки.";
+      return;
+    }
+
+    emailBtn.disabled = true;
+    emailBtn.textContent = "Проверка...";
+
+    try {
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      const resp = await fetch("/analyze/email", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Ошибка сервера: ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      renderResult(result, data, "EML");
+    } catch (err) {
+      error.textContent = "Ошибка при отправке запроса: " + err.message;
+    } finally {
+      emailBtn.disabled = false;
+      emailBtn.textContent = "Проверить";
+    }
+  }
+
+  document.getElementById("url-form").addEventListener("submit", handleUrlSubmit);
+  document.getElementById("email-form").addEventListener("submit", handleEmailSubmit);
+</script>
 </body>
 </html>
