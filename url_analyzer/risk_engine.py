@@ -9,7 +9,7 @@ STATUS_ORDER = ["clean", "suspicious", "malicious"]
 
 class RiskEngine:
     """
-    Берёт features + правила из таблицы risk_rules и считает risk_score и статус.
+    Берёт features + правила из таблицы risk_rules и считает risk_score и статус
     """
 
     def __init__(self, conn: sqlite3.Connection):

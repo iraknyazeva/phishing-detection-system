@@ -9,7 +9,6 @@ import OpenSSL
 def check_ssl(domain: str) -> Dict[str, Any]:
     """
     Проверка SSL через ssl.get_server_certificate + pyOpenSSL.
-
     Что делаем:
     - запрашиваем реальный сертификат у сервера
     - парсим его через OpenSSL
