@@ -10,7 +10,7 @@ DB_PATH = "database/phishing.db"
 
 class EmailAnalyzer:
     def __init__(self):
-        self.conn = sqlite3.connect(DB_PATH)
+        self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.risk_engine = RiskEngine(self.conn)
 
