@@ -1,5 +1,7 @@
 # api.py
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import time
 import hashlib
 from datetime import datetime, timezone
@@ -15,6 +17,24 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp.mail.ru")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 465))
 SMTP_USER = os.getenv("SMTP_USER", "testrabotaitv@mail.ru")
 SMTP_PASS = os.getenv("SMTP_PASS", "M0VV2bd5RooFyP8fI9TU")
+
+
+
+
+from io import BytesIO
+import secrets
+from datetime import timedelta
+import httpx
+from sqlalchemy import or_
+from database.models.telegram_links import TelegramLink
+TG_BOT_TOKEN = os.getenv("TG_BOT_TOKEN", "")
+TG_API = f"https://api.telegram.org/bot{TG_BOT_TOKEN}"
+
+
+
+
+
+
 
 
 
@@ -616,5 +636,169 @@ def send_report(
 
 
 
+#telegram
+
+def build_report_text(kind: str, data: dict) -> str:
+    status = str(data.get("status", "unknown"))
+    risk = data.get("risk_score", "?")
+    duration = data.get("analysis_duration", "—")
+    confidence = data.get("confidence", "—")
+
+    label_map = {
+        "clean": "🟢 Безопасно",
+        "suspicious": "🟡 Подозрительно",
+        "malicious": "🔴 Опасно",
+        "dangerous": "🔴 Опасно",
+    }
+    label = label_map.get(status, "⚪ Неизвестно")
+
+    target = data.get("url") or data.get("email_subject") or "—"
+
+    return "\n".join([
+        f"<b>📊 Отчёт проверки ({kind.upper()})</b>",
+        "",
+        f"<b>Статус:</b> {label}",
+        f"<b>Риск:</b> <b>{risk}</b>",
+        f"<b>Время:</b> {duration} сек",
+        f"<b>Confidence:</b> {confidence}",
+        "",
+        f"<b>Объект:</b> {target}",
+        "",
+        "📎 Полный отчёт — JSON во вложении.",
+    ])
+
+def tg_send_message(chat_id: str, text_html: str):
+    r = httpx.post(
+        f"{TG_API}/sendMessage",
+        json={
+            "chat_id": chat_id,
+            "text": text_html,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True,
+        },
+        timeout=20,
+    )
+    r.raise_for_status()
+
+def tg_send_json_file(chat_id: str, data_dict: dict, filename: str):
+    payload = json.dumps(jsonable_encoder(data_dict), ensure_ascii=False, indent=2).encode("utf-8")
+    bio = BytesIO(payload)
+    bio.name = filename
+
+    files = {"document": (filename, bio, "application/json")}
+    form = {"chat_id": chat_id, "caption": "JSON отчёт"}
+
+    r = httpx.post(f"{TG_API}/sendDocument", data=form, files=files, timeout=30)
+    r.raise_for_status()
+
+@app.get("/telegram/link")
+def telegram_link_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    link = db.query(TelegramLink).filter(TelegramLink.user_id == user.id).first()
+    return templates.TemplateResponse(
+        "telegram_link.html",
+        {"request": request, "user": user, "link": link}
+    )
+
+@app.post("/telegram/link/start")
+def telegram_link_start(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not TG_BOT_TOKEN:
+        raise HTTPException(500, "TG_BOT_TOKEN is not set")
+
+    code = "TG-" + secrets.token_hex(3).upper()  # например TG-A1B2C3
+    expires = datetime.utcnow() + timedelta(minutes=10)
+
+    link = db.query(TelegramLink).filter(TelegramLink.user_id == user.id).first()
+    if not link:
+        link = TelegramLink(user_id=user.id)
+
+    link.verification_code = code
+    link.code_expires_at = expires
+    link.is_verified = False
+    # chat_id не трогаем — если вдруг уже был (можно оставить или очистить по желанию)
+
+    db.add(link)
+    db.commit()
+
+    return {"ok": True, "code": code, "expires_at": expires.isoformat()}
+
+
+@app.post("/telegram/link/finish")
+def telegram_link_finish(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not TG_BOT_TOKEN:
+        raise HTTPException(500, "TG_BOT_TOKEN is not set")
+
+    link = db.query(TelegramLink).filter(TelegramLink.user_id == user.id).first()
+    if not link or not link.verification_code:
+        raise HTTPException(400, "Сначала нажмите «Получить код»")
+
+    if link.code_expires_at and datetime.utcnow() > link.code_expires_at:
+        raise HTTPException(400, "Код истёк. Получите новый код.")
+
+    # читаем последние обновления
+    r = httpx.get(f"{TG_API}/getUpdates", timeout=20)
+    r.raise_for_status()
+    data = r.json()
+
+    code = link.verification_code.strip()
+
+    # идём с конца (самые новые сообщения)
+    for upd in reversed(data.get("result", [])):
+        msg = upd.get("message") or {}
+        text = (msg.get("text") or "").strip()
+        chat = msg.get("chat") or {}
+        chat_id = chat.get("id")
+
+        if not text or not chat_id:
+            continue
+
+        # ожидаем формат: /start TG-XXXXXX
+        parts = text.split()
+        if len(parts) == 2 and parts[0] == "/start" and parts[1].strip() == code:
+            # сохраняем
+            link.chat_id = str(chat_id)
+            link.is_verified = True
+            link.verification_code = None
+            link.code_expires_at = None
+
+            db.add(link)
+            db.commit()
+            return {"ok": True, "chat_id": str(chat_id)}
+
+    return {"ok": False, "detail": "Не нашли сообщение /start <код>. Напишите боту команду и нажмите «Проверить» ещё раз."}
+
+@app.post("/send-report/telegram")
+def send_report_telegram(payload: dict, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not TG_BOT_TOKEN:
+        raise HTTPException(500, "TG_BOT_TOKEN is not set")
+
+    kind = payload.get("type")   # url | email
+    result = payload.get("result")
+
+    if kind not in ("url", "email") or not result:
+        raise HTTPException(400, "Некорректные данные")
+
+    link = db.query(TelegramLink).filter(TelegramLink.user_id == user.id, TelegramLink.is_verified == True).first()
+    if not link or not link.chat_id:
+        raise HTTPException(400, "Telegram не привязан. Привяжите в личном кабинете.")
+
+    text = build_report_text(kind, result)
+    tg_send_message(link.chat_id, text)
+    tg_send_json_file(link.chat_id, result, f"{kind}_result.json")
+
+    return {"ok": True}
+print("TG_BOT_TOKEN loaded:", bool(os.getenv("TG_BOT_TOKEN")))
+
 if __name__ == "__main__":
     uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True)
+
+

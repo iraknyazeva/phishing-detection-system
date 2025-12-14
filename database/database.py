@@ -37,6 +37,7 @@ def create_tables():
         settings,
         analysis_sessions,
         risk_rules,
+        telegram_links,
     )
 
     # 2️⃣ И только потом создаём таблицы

@@ -231,3 +231,35 @@ if (sendBtn) {
     }
   });
 }
+
+
+// Отправка результата в Telegram (chat_id берётся на сервере из telegram_links)
+const sendTgBtn = document.getElementById("send-url-tg-btn");
+if (sendTgBtn) {
+  sendTgBtn.addEventListener("click", async () => {
+    const msg = document.getElementById("send-url-msg");
+
+    if (!lastUrlResult) {
+      if (msg) msg.textContent = "Сначала выполните проверку URL.";
+      return;
+    }
+
+    if (msg) msg.textContent = "Отправка в Telegram...";
+    try {
+      const resp = await fetch("/send-report/telegram", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ type: "url", result: lastUrlResult })
+      });
+
+      if (resp.ok) {
+        if (msg) msg.textContent = "Отправлено в Telegram ✅";
+      } else {
+        const data = await resp.json().catch(() => ({}));
+        if (msg) msg.textContent = data.detail || "Ошибка отправки в Telegram ❌ (возможно Telegram не привязан)";
+      }
+    } catch (e) {
+      if (msg) msg.textContent = "Ошибка отправки в Telegram ❌";
+    }
+  });
+}

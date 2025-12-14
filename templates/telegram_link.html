@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>Привязка Telegram</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <div><a class="link" href="/dashboard">← Назад в ЛК</a></div>
+    <div><a class="link" href="/logout">Выйти</a></div>
+  </div>
+
+  <h1>Привязка Telegram</h1>
+
+  {% if link and link.is_verified %}
+    <div class="kv">
+      <div class="kv-row"><div class="kv-key">Статус</div><div class="kv-val">✅ Привязан</div></div>
+      <div class="kv-row"><div class="kv-key">Chat ID</div><div class="kv-val">{{ link.chat_id }}</div></div>
+    </div>
+  {% else %}
+    <div class="kv">
+      <div class="kv-row"><div class="kv-key">Статус</div><div class="kv-val">❌ Не привязан</div></div>
+    </div>
+  {% endif %}
+
+  <div class="section">
+    <p class="muted" style="margin-top:0">
+      ⚠️ Бот не может писать первым. Нужно один раз написать боту команду:
+      <b>/start &lt;код&gt;</b>
+    </p>
+
+    <div class="actions-row">
+      <button type="button" id="tg-start" class="btn-secondary">Получить код</button>
+      <button type="button" id="tg-finish" class="btn-secondary">Проверить привязку</button>
+    </div>
+
+    <div id="tg-code" class="kv" style="display:none;margin-top:12px"></div>
+    <div id="tg-msg" class="muted" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<script src="/static/js/telegram_link.js"></script>
+</body>
+</html>
