@@ -19,7 +19,8 @@ SMTP_USER = os.getenv("SMTP_USER", "testrabotaitv@mail.ru")
 SMTP_PASS = os.getenv("SMTP_PASS", "HJIzhXmJM6HIpZzgVOl3")
 
 
-
+import qrcode
+from fastapi.responses import Response
 
 from io import BytesIO
 import secrets
@@ -701,7 +702,7 @@ def telegram_link_page(
     link = db.query(TelegramLink).filter(TelegramLink.user_id == user.id).first()
     return templates.TemplateResponse(
         "telegram_link.html",
-        {"request": request, "user": user, "link": link}
+        {"request": request, "user": user, "link": link, "tg_bot_username": TG_BOT_USERNAME}
     )
 
 @app.post("/telegram/link/start")
@@ -711,8 +712,10 @@ def telegram_link_start(
 ):
     if not TG_BOT_TOKEN:
         raise HTTPException(500, "TG_BOT_TOKEN is not set")
+    if not TG_BOT_USERNAME:
+        raise HTTPException(500, "TG_BOT_USERNAME is not set")
 
-    code = "TG-" + secrets.token_hex(3).upper()  # например TG-A1B2C3
+    code = "TG-" + secrets.token_hex(3).upper()
     expires = datetime.utcnow() + timedelta(minutes=10)
 
     link = db.query(TelegramLink).filter(TelegramLink.user_id == user.id).first()
@@ -722,12 +725,31 @@ def telegram_link_start(
     link.verification_code = code
     link.code_expires_at = expires
     link.is_verified = False
-    # chat_id не трогаем — если вдруг уже был (можно оставить или очистить по желанию)
 
     db.add(link)
     db.commit()
 
-    return {"ok": True, "code": code, "expires_at": expires.isoformat()}
+    bot_link = f"https://t.me/{TG_BOT_USERNAME}"
+
+    return {
+        "ok": True,
+        "code": code,
+        "expires_at": expires.isoformat(),
+        "bot_link": bot_link,
+        "qr_url": "/telegram/link/qr",
+    }
+
+@app.get("/telegram/link/qr")
+def telegram_link_qr(user: User = Depends(get_current_user)):
+    if not TG_BOT_USERNAME:
+        raise HTTPException(500, "TG_BOT_USERNAME is not set")
+
+    url = f"https://t.me/{TG_BOT_USERNAME}"
+    img = qrcode.make(url)
+
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
 
 
 @app.post("/telegram/link/finish")
@@ -762,10 +784,9 @@ def telegram_link_finish(
         if not text or not chat_id:
             continue
 
-        # ожидаем формат: /start TG-XXXXXX
-        parts = text.split()
-        if len(parts) == 2 and parts[0] == "/start" and parts[1].strip() == code:
-            # сохраняем
+        # пользователь должен ПРОСТО отправить код сообщением: "TG-XXXXXX"
+        # допускаем, что код может быть в тексте (например, "мой код TG-XXXXXX")
+        if code in text:
             link.chat_id = str(chat_id)
             link.is_verified = True
             link.verification_code = None
@@ -775,7 +796,10 @@ def telegram_link_finish(
             db.commit()
             return {"ok": True, "chat_id": str(chat_id)}
 
-    return {"ok": False, "detail": "Не нашли сообщение /start <код>. Напишите боту команду и нажмите «Проверить» ещё раз."}
+    return {
+        "ok": False,
+        "detail": "Код не найден. Откройте бота, нажмите Start и отправьте ему код сообщением (просто TG-XXXXXX), затем нажмите «Проверить привязку» ещё раз."
+    }
 
 @app.post("/send-report/telegram")
 def send_report_telegram(payload: dict, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -799,7 +823,27 @@ def send_report_telegram(payload: dict, db: Session = Depends(get_db), user: Use
     return {"ok": True}
 print("TG_BOT_TOKEN loaded:", bool(os.getenv("TG_BOT_TOKEN")))
 
+@app.get("/telegram/status")
+def telegram_status(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    link = db.query(TelegramLink).filter(TelegramLink.user_id == user.id).first()
+    return {"linked": bool(link and link.is_verified and link.chat_id)}
+
+@app.post("/telegram/unlink")
+def telegram_unlink(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    link = db.query(TelegramLink).filter(TelegramLink.user_id == user.id).first()
+    if not link:
+        return {"ok": True}
+
+    link.chat_id = None
+    link.is_verified = False
+    link.verification_code = None
+    link.code_expires_at = None
+    db.add(link)
+    db.commit()
+    return {"ok": True}
+
+
 if __name__ == "__main__":
-    uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("api:app", host="10.8.0.2", port=8000, reload=True)
 
 

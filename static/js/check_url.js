@@ -263,3 +263,14 @@ if (sendTgBtn) {
     }
   });
 }
+
+(async () => {
+  try {
+    const r = await fetch("/telegram/status");
+    const s = await r.json();
+    if (!s.linked) {
+      const btn = document.getElementById("send-url-tg-btn");
+      if (btn) btn.style.display = "none";
+    }
+  } catch (_) {}
+})();

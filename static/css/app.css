@@ -188,3 +188,22 @@ button:disabled{background:#475569;cursor:default;transform:none}
   background: #020617;
   color: #e5e7eb;
 }
+
+
+.tg-msg {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #9ca3af;        /* нейтральный текст */
+}
+
+.tg-msg.ok {
+  color: #4ade80;        /* зелёный */
+}
+
+.tg-msg.warn {
+  color: #facc15;        /* жёлтый */
+}
+
+.tg-msg.err {
+  color: #f87171;        /* красный */
+}
