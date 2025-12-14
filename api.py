@@ -5,6 +5,18 @@ import hashlib
 from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
 from fastapi.encoders import jsonable_encoder
+import json
+from email.mime.application import MIMEApplication
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.mail.ru")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 465))
+SMTP_USER = os.getenv("SMTP_USER", "testrabotaitv@mail.ru")
+SMTP_PASS = os.getenv("SMTP_PASS", "M0VV2bd5RooFyP8fI9TU")
+
+
 
 from fastapi.encoders import jsonable_encoder
 import uvicorn
@@ -232,6 +244,13 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depe
         }
     )
 
+@app.get("/check/url")
+def check_url_page(request: Request, user: User = Depends(get_current_user)):
+    return templates.TemplateResponse("check_url.html", {"request": request, "user": user})
+
+@app.get("/check/email")
+def check_email_page(request: Request, user: User = Depends(get_current_user)):
+    return templates.TemplateResponse("check_email.html", {"request": request, "user": user})
 
 # ---------- ANALYZE URL ----------
 @app.post("/analyze/url")
@@ -482,6 +501,119 @@ def admin_users_change_role(
     target.role = role
     db.commit()
     return RedirectResponse(url="/admin/users", status_code=302)
+
+
+def send_email_report(to_email: str, subject: str, html_body: str, json_data: dict, filename_prefix: str):
+    msg = MIMEMultipart()
+    msg["From"] = SMTP_USER
+    msg["To"] = to_email
+    msg["Subject"] = subject
+
+    # HTML часть
+    msg.attach(MIMEText(html_body, "html"))
+
+    # JSON вложение
+    json_bytes = json.dumps(
+        jsonable_encoder(json_data),
+        ensure_ascii=False,
+        indent=2
+    ).encode("utf-8")
+
+    attachment = MIMEApplication(json_bytes, _subtype="json")
+    attachment.add_header(
+        "Content-Disposition",
+        "attachment",
+        filename=f"{filename_prefix}_result.json"
+    )
+    msg.attach(attachment)
+
+    if SMTP_PORT == 465:
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+
+def build_report_email(kind: str, data: dict) -> str:
+    status = data.get("status", "unknown")
+    risk = data.get("risk_score", "?")
+
+    status_map = {
+        "clean": ("🟢 Безопасно", "#16a34a"),
+        "suspicious": ("🟡 Подозрительно", "#eab308"),
+        "malicious": ("🔴 Опасно", "#dc2626"),
+        "dangerous": ("🔴 Опасно", "#dc2626"),
+    }
+
+    label, color = status_map.get(status, ("⚪ Неизвестно", "#64748b"))
+
+    main_value = data.get("url") or data.get("email_subject") or "—"
+
+    return f"""
+    <div style="font-family:system-ui,Segoe UI,sans-serif;background:#0f172a;padding:24px">
+      <div style="max-width:640px;margin:auto;background:#020617;border-radius:16px;
+                  padding:24px;border:1px solid #1e293b;color:#e5e7eb">
+
+        <h2 style="margin-top:0">📊 Отчёт проверки ({kind.upper()})</h2>
+
+        <div style="margin:16px 0;padding:14px;border-radius:12px;
+                    border:1px solid {color};background:rgba(0,0,0,.3)">
+          <div style="font-size:18px;font-weight:600;color:{color}">
+            {label}
+          </div>
+          <div style="margin-top:6px;font-size:14px">
+            Риск-оценка: <b>{risk}</b>
+          </div>
+        </div>
+
+        <div style="font-size:14px;line-height:1.6">
+          <p><b>Объект проверки:</b><br>{main_value}</p>
+          <p>⏱️ <b>Время анализа:</b> {data.get("analysis_duration", "—")} сек</p>
+          <p>🎯 <b>Confidence:</b> {data.get("confidence", "—")}</p>
+        </div>
+
+        <hr style="border:none;border-top:1px solid #1e293b;margin:20px 0">
+
+        <p style="font-size:13px;color:#94a3b8">
+          📎 Полный технический отчёт приложен к письму в формате JSON.
+        </p>
+
+        <p style="font-size:12px;color:#64748b">
+          Phishing Detection System
+        </p>
+      </div>
+    </div>
+    """
+
+
+
+@app.post("/send-report")
+def send_report(
+    payload: dict,
+    user: User = Depends(get_current_user)
+):
+    email = payload.get("email")
+    data = payload.get("result")
+    kind = payload.get("type")  # "url" | "email"
+
+    if not email or not data or kind not in ("url", "email"):
+        raise HTTPException(status_code=400, detail="Некорректные данные")
+
+    html = build_report_email(kind, data)
+
+    send_email_report(
+        to_email=email,
+        subject=f"Отчёт проверки ({kind.upper()})",
+        html_body=html,
+        json_data=data,
+        filename_prefix=kind
+    )
+
+    return {"ok": True}
+
 
 
 if __name__ == "__main__":

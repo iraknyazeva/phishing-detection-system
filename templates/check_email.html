@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>Проверка EML</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <div><a class="link" href="/dashboard">← Назад в ЛК</a></div>
+    <div><a class="link" href="/logout">Выйти</a></div>
+  </div>
+
+  <h1>Проверка письма (EML)</h1>
+
+  <div class="section">
+    <form id="email-form" enctype="multipart/form-data">
+      <input type="file" name="file" id="eml-file" accept=".eml" />
+      <button type="submit" id="email-btn">Проверить</button>
+    </form>
+
+    <div id="email-error" class="error"></div>
+
+    <div id="email-result" class="result-card" style="display:none;"></div>
+
+    <!-- Отправка результата на email -->
+    <div id="send-email-block" style="display:none;margin-top:12px">
+      <div class="actions-row">
+        <input type="email" id="send-email-email" placeholder="Введите email для отправки" style="flex:1;min-width:240px">
+        <button type="button" id="send-email-btn" class="btn-secondary">Отправить на почту</button>
+      </div>
+      <div id="send-email-msg" class="muted" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/check_email.js"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>Проверка URL</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <div><a class="link" href="/dashboard">← Назад в ЛК</a></div>
+    <div><a class="link" href="/logout">Выйти</a></div>
+  </div>
+
+  <h1>Проверка URL</h1>
+
+  <div class="section">
+    <form id="url-form">
+      <input type="text" name="url" id="url-input" placeholder="https://example.com" />
+      <button type="submit" id="url-btn">Проверить</button>
+    </form>
+
+    <div id="url-error" class="error"></div>
+
+    <div id="url-result" class="result-card" style="display:none;"></div>
+
+    <!-- Отправка результата на email -->
+    <div id="send-url-block" style="display:none;margin-top:12px">
+      <div class="actions-row">
+        <input type="email" id="send-url-email" placeholder="Введите email для отправки" style="flex:1;min-width:240px">
+        <button type="button" id="send-url-btn" class="btn-secondary">Отправить на почту</button>
+      </div>
+      <div id="send-url-msg" class="muted" style="margin-top:8px"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/check_url.js"></script>
+</body>
+</html>

@@ -1,45 +1,80 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"/><title>Пользователи</title></head>
+<head>
+  <meta charset="utf-8"/>
+  <title>Пользователи</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
 <body>
-  <div style="display:flex;justify-content:space-between;align-items:center">
-    <div><a href="/dashboard">← ЛК</a> | <b>Пользователи</b></div>
-    <div><a href="/logout">Выйти</a></div>
+<div class="container">
+  <div class="topbar">
+    <div>
+      <a class="link" href="/dashboard">← ЛК</a>
+      <span class="muted">|</span>
+      <b>Пользователи</b>
+    </div>
+    <div><a class="link" href="/logout">Выйти</a></div>
   </div>
 
-  <hr/>
+  <h1>Пользователи</h1>
 
-  <p><a href="/admin/users/create">+ Создать пользователя</a></p>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <a class="btn-link" href="/admin/users/create">+ Создать пользователя</a>
+  </div>
 
-  <table border="1" cellpadding="6" cellspacing="0">
-    <thead>
-      <tr><th>ID</th><th>Логин</th><th>Email</th><th>Роль</th><th>Активен</th><th>Действия</th></tr>
-    </thead>
-    <tbody>
-    {% for u in users %}
-      <tr>
-        <td>{{ u.id }}</td>
-        <td>{{ u.username }}</td>
-        <td>{{ u.email }}</td>
-        <td>
-          <form method="post" action="/admin/users/{{u.id}}/role" style="display:flex;gap:6px">
-            <select name="role">
-              {% for r in roles %}
-                <option value="{{r}}" {% if u.role==r or (u.role=="analyst" and r=="monitoring") %}selected{% endif %}>{{ r }}</option>
-              {% endfor %}
-            </select>
-            <button type="submit">Сменить</button>
-          </form>
-        </td>
-        <td>{{ "да" if u.is_active else "нет" }}</td>
-        <td>
-          <form method="post" action="/admin/users/{{u.id}}/toggle">
-            <button type="submit">{{ "Отключить" if u.is_active else "Включить" }}</button>
-          </form>
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Логин</th>
+          <th>Email</th>
+          <th>Роль</th>
+          <th>Активен</th>
+          <th>Действия</th>
+        </tr>
+      </thead>
+
+      <tbody>
+      {% for u in users %}
+        <tr>
+          <td class="muted">{{ u.id }}</td>
+          <td><b>{{ u.username }}</b></td>
+          <td class="muted">{{ u.email }}</td>
+
+          <td>
+            <form method="post" action="/admin/users/{{u.id}}/role" class="inline-form">
+              <select name="role" class="select">
+                {% for r in roles %}
+                  <option value="{{r}}" {% if u.role==r or (u.role=="analyst" and r=="monitoring") %}selected{% endif %}>
+                    {{ r }}
+                  </option>
+                {% endfor %}
+              </select>
+              <button type="submit">Сменить</button>
+            </form>
+          </td>
+
+          <td>
+            {% if u.is_active %}
+              <span class="pill pill-ok">да</span>
+            {% else %}
+              <span class="pill pill-off">нет</span>
+            {% endif %}
+          </td>
+
+          <td>
+            <form method="post" action="/admin/users/{{u.id}}/toggle">
+              <button type="submit" class="{% if u.is_active %}btn-danger{% endif %}">
+                {{ "Отключить" if u.is_active else "Включить" }}
+              </button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 </body>
 </html>

@@ -1,23 +1,65 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"/><title>Создать пользователя</title></head>
+<head>
+  <meta charset="utf-8"/>
+  <title>Создать пользователя</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
 <body>
-  <p><a href="/admin/users">← Назад</a></p>
-  <h1>Создать пользователя</h1>
 
-  {% if error %}<p style="color:red">{{ error }}</p>{% endif %}
+<div class="container">
 
-  <form method="post" action="/admin/users/create">
-    <div><label>Логин</label> <input name="username" required></div>
-    <div><label>Email</label> <input name="email" type="email" required></div>
-    <div><label>Пароль</label> <input name="password" type="password" required></div>
+  <div class="topbar">
     <div>
-      <label>Роль</label>
-      <select name="role">
-        {% for r in roles %}<option value="{{r}}">{{ r }}</option>{% endfor %}
-      </select>
+      <a class="link" href="/admin/users">← Назад к пользователям</a>
     </div>
-    <button type="submit">Создать</button>
-  </form>
+    <div>
+      <a class="link" href="/logout">Выйти</a>
+    </div>
+  </div>
+
+  <h1>Создание пользователя</h1>
+
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <div class="section">
+    <form method="post" action="/admin/users/create" class="form-vertical">
+
+      <label>
+        <span>Логин</span>
+        <input name="username" required placeholder="username">
+      </label>
+
+      <label>
+        <span>Email</span>
+        <input name="email" type="email" required placeholder="user@example.com">
+      </label>
+
+      <label>
+        <span>Пароль</span>
+        <input name="password" type="password" required placeholder="••••••••">
+      </label>
+
+      <label>
+        <span>Роль</span>
+        <select name="role">
+          {% for r in roles %}
+            <option value="{{ r }}">{{ r }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div style="margin-top:16px;display:flex;gap:10px">
+        <button type="submit">Создать пользователя</button>
+        <a href="/admin/users" class="link">Отмена</a>
+      </div>
+
+    </form>
+  </div>
+
+</div>
+
 </body>
 </html>

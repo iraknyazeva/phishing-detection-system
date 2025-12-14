@@ -1,45 +1,49 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"/><title>Личный кабинет</title></head>
+<head>
+  <meta charset="utf-8"/>
+  <title>Личный кабинет</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
 <body>
-  <div style="display:flex;justify-content:space-between;align-items:center">
+<div class="container">
+  <div class="topbar">
     <div>
       <b>{{ user.username }}</b> (роль: {{ effective_role }})
-      <span style="margin-left:12px">
+      <span class="muted" style="margin-left:12px">
         Сессия: {{ session.id }} | Проверок: {{ session.total_checks }} | Рисковых: {{ session.risky_found }}
       </span>
     </div>
-    <div><a href="/logout">Выйти</a></div>
+    <div><a class="link" href="/logout">Выйти</a></div>
   </div>
 
-  <hr/>
+  <h1>Личный кабинет</h1>
 
-  <h2>Разделы</h2>
-  <ul>
-    <li><a href="#url">Проверка URL</a></li>
-    <li><a href="#eml">Проверка EML</a></li>
+  <div class="grid">
+    <a class="card" href="/check/url">
+      <div class="card-title">Проверка URL</div>
+      <div class="card-subtitle">Проверка домена, DNS/SSL/WHOIS и индикаторов</div>
+    </a>
+
+    <a class="card" href="/check/email">
+      <div class="card-title">Проверка письма (EML)</div>
+      <div class="card-subtitle">Анализ заголовков, ссылок, признаков фишинга</div>
+    </a>
 
     {% if effective_role in ["monitoring", "admin"] %}
-      <li><a href="/monitoring">Мониторинг (можно добавить следующим шагом)</a></li>
+    <a class="card" href="/monitoring">
+      <div class="card-title">Мониторинг</div>
+      <div class="card-subtitle">Просмотр инцидентов и статистики (позже)</div>
+    </a>
     {% endif %}
 
     {% if effective_role == "admin" %}
-      <li><a href="/admin/users">Пользователи</a></li>
+    <a class="card" href="/admin/users">
+      <div class="card-title">Пользователи</div>
+      <div class="card-subtitle">Создание и управление пользователями</div>
+    </a>
     {% endif %}
-  </ul>
-
-  <hr/>
-
-  <h2 id="url">Проверка URL</h2>
-  <form method="post" action="/analyze/url">
-    <input name="url" placeholder="https://example.com" style="width:420px" required>
-    <button type="submit">Проверить</button>
-  </form>
-
-  <h2 id="eml">Проверка EML</h2>
-  <form method="post" action="/analyze/email" enctype="multipart/form-data">
-    <input type="file" name="file" accept=".eml" required>
-    <button type="submit">Проверить письмо</button>
-  </form>
+  </div>
+</div>
 </body>
 </html>
