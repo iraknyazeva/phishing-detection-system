@@ -16,7 +16,7 @@ from email.mime.multipart import MIMEMultipart
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.mail.ru")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 465))
 SMTP_USER = os.getenv("SMTP_USER", "testrabotaitv@mail.ru")
-SMTP_PASS = os.getenv("SMTP_PASS", "M0VV2bd5RooFyP8fI9TU")
+SMTP_PASS = os.getenv("SMTP_PASS", "HJIzhXmJM6HIpZzgVOl3")
 
 
 
@@ -28,6 +28,7 @@ import httpx
 from sqlalchemy import or_
 from database.models.telegram_links import TelegramLink
 TG_BOT_TOKEN = os.getenv("TG_BOT_TOKEN", "")
+TG_BOT_USERNAME = os.getenv("TG_BOT_USERNAME", "")
 TG_API = f"https://api.telegram.org/bot{TG_BOT_TOKEN}"
 
 
