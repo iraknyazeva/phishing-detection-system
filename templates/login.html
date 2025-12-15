@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>Вход</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="container" style="max-width:420px">
+  <h1>Вход в систему</h1>
+
+  {% if error %}
+    <div class="error" style="margin-bottom:12px">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/login" class="section">
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+      <label class="muted">Логин</label>
+      <input
+        name="username"
+        value="{{ username or '' }}"
+        placeholder="Введите логин"
+        required
+      >
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">
+      <label class="muted">Пароль</label>
+      <input
+        type="password"
+        name="password"
+        placeholder="Введите пароль"
+        required
+      >
+    </div>
+
+    <button type="submit" style="width:100%">Войти</button>
+  </form>
+
+  <div class="muted" style="text-align:center;font-size:12px;margin-top:16px">
+    Phishing Detection System
+  </div>
+</div>
+</body>
+</html>
