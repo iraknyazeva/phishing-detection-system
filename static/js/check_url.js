@@ -274,3 +274,101 @@ if (sendTgBtn) {
     }
   } catch (_) {}
 })();
+
+
+
+
+// ===== Batch URL check =====
+document.addEventListener("DOMContentLoaded", () => {
+  const batchFile = document.getElementById("batch-file");
+  const batchRun = document.getElementById("batch-run");
+  const batchError = document.getElementById("batch-error");
+  const batchProgress = document.getElementById("batch-progress");
+  const batchTable = document.getElementById("batch-table");
+  const batchTbody = document.getElementById("batch-tbody");
+
+  if (!batchRun) return; // если на странице нет блока — просто выходим
+
+  function addRow(url, status, risk) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="padding:8px;border-top:1px solid #1e293b">${escapeHtml(url)}</td>
+      <td style="padding:8px;border-top:1px solid #1e293b">${escapeHtml(String(status ?? ""))}</td>
+      <td style="padding:8px;border-top:1px solid #1e293b">${escapeHtml(String(risk ?? ""))}</td>
+    `;
+    batchTbody.appendChild(tr);
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  batchRun.addEventListener("click", async () => {
+    batchError.textContent = "";
+    batchProgress.textContent = "";
+    batchTbody.innerHTML = "";
+    batchTable.style.display = "none";
+
+    const f = batchFile.files && batchFile.files[0];
+    if (!f) {
+      batchError.textContent = "Выбери файл (.txt / .csv) со ссылками (каждая с новой строки).";
+      return;
+    }
+
+    let text = "";
+    try {
+      text = await f.text();
+    } catch (e) {
+      batchError.textContent = "Не удалось прочитать файл.";
+      return;
+    }
+
+    const urls = text
+      .split(/\r?\n/)
+      .map(x => x.trim())
+      .filter(x => x && !x.startsWith("#"));
+
+    if (urls.length === 0) {
+      batchError.textContent = "Файл пустой или в нём нет строк с URL.";
+      return;
+    }
+
+    batchTable.style.display = "";
+    batchRun.disabled = true;
+
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      batchProgress.textContent = `Проверяю ${i + 1} / ${urls.length}...`;
+
+      try {
+        const body = new URLSearchParams();
+        body.set("url", url);
+
+        const r = await fetch("/analyze/url", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body
+        });
+
+        if (!r.ok) {
+          const t = await r.text();
+          addRow(url, `HTTP ${r.status}`, t.slice(0, 120));
+          continue;
+        }
+
+        const data = await r.json();
+        addRow(url, data.status, data.risk_score);
+      } catch (e) {
+        addRow(url, "error", String(e));
+      }
+    }
+
+    batchProgress.textContent = `Готово: ${urls.length} шт.`;
+    batchRun.disabled = false;
+  });
+});

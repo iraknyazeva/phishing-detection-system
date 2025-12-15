@@ -885,6 +885,106 @@ def analyze_url(
 
     return JSONResponse(jsonable_encoder(row.to_dict()))
 
+@app.post("/analyze/url/batch")
+async def analyze_url_batch(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    sess = ensure_active_session(db, request, user)
+
+    text = (await file.read()).decode("utf-8", errors="ignore")
+
+    urls = [
+        line.strip()
+        for line in text.replace("\r", "\n").split("\n")
+        if line.strip()
+    ]
+
+    if not urls:
+        raise HTTPException(400, "Файл пуст")
+
+    if len(urls) > 500:
+        raise HTTPException(400, "Максимум 500 URL")
+
+    results = []
+    ok = 0
+
+    for url in urls:
+        try:
+            start = time.time()
+            result = url_analyzer.analyze(url)
+
+            h = hashlib.sha256(
+                (result.get("normalized_url") or url).encode("utf-8")
+            ).hexdigest()
+
+            row = URLAnalysisResult(
+                url=url,
+                normalized_url=result.get("normalized_url"),
+                scheme=result.get("scheme"),
+                domain=result.get("domain"),
+                path=result.get("path"),
+                query_params=result.get("query_params"),
+                risk_score=float(result.get("risk_score", 0.0)),
+                status=str(result.get("status", "pending")),
+                confidence=float(result.get("confidence", 0.0)),
+                domain_analysis=result.get("dns") or result.get("domain_analysis"),
+                ssl_analysis=result.get("ssl") or result.get("ssl_analysis"),
+                reputation_analysis=result.get("reputation_analysis"),
+                content_analysis=result.get("content_analysis"),
+                matched_indicators=result.get("indicators") or result.get("matched_indicators"),
+                redirect_chain=result.get("redirect_chain"),
+                final_url=result.get("final_url"),
+                analysis_duration=float(result.get("analysis_duration", time.time() - start)),
+                hash=h,
+            )
+
+            db.add(row)
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                row = db.query(URLAnalysisResult).filter(URLAnalysisResult.hash == h).first()
+
+            sess.total_checks += 1
+            if row.status in ("suspicious", "malicious", "dangerous"):
+                sess.risky_found += 1
+            db.commit()
+
+            ok += 1
+            results.append(jsonable_encoder(row.to_dict()))
+
+        except Exception as e:
+            db.rollback()
+            results.append({
+                "url": url,
+                "error": str(e),
+            })
+
+    log_event(
+        db,
+        level="info",
+        logger="web",
+        message=f"Batch URL analyze: total={len(urls)} ok={ok}",
+        module="url",
+        operation="analyze_batch",
+        user_id=user.id,
+        extra_data={"total": len(urls), "ok": ok},
+        tags=["url", "batch"],
+    )
+
+    return {
+        "total": len(urls),
+        "ok": ok,
+        "failed": len(urls) - ok,
+        "results": results,
+    }
+
+
+
+
 
 # ---------- ANALYZE EMAIL ----------
 @app.post("/analyze/email")
