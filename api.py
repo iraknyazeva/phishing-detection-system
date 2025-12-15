@@ -86,6 +86,69 @@ def web_interface(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+
+# ---------- LOGIN ----------
+@app.get("/login")
+def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.post("/login")
+def login(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    user = authenticate_user(db, username, password)
+    if not user:
+        return templates.TemplateResponse(
+            "login.html",
+            {"request": request, "error": "Неверный логин/пароль или пользователь отключён", "username": username},
+            status_code=400
+        )
+
+    request.session["user_id"] = user.id
+    request.session["role"] = user.role
+
+    # last_login есть в users :contentReference[oaicite:11]{index=11}
+    user.last_login = datetime.now(timezone.utc)
+    db.commit()
+
+    # стартуем/возобновляем сессию анализа
+    ensure_active_session(db, request, user)
+
+    return RedirectResponse(url="/dashboard", status_code=302)
+
+
+@app.get("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=302)
+
+
+# ---------- DASHBOARD (ЛК) ----------
+@app.get("/dashboard")
+def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # Подтягиваем текущую сессию для статистики в ЛК
+    sess = ensure_active_session(db, request, user)
+
+    # monitoring и analyst считаем как “мониторинг”
+    effective_role = ROLE_MONITORING if user.role == ROLE_ANALYST_LEGACY else user.role
+
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "user": user,
+            "effective_role": effective_role,
+            "session": sess,
+        }
+    )
+
+
+
+
 # --------------------------
 # API: анализ URL
 # --------------------------
