@@ -675,7 +675,7 @@ async def monitoring_create_submit(
                 "tables": MONITOR_TABLES,  # ✅ ДОБАВИТЬ
                 "cfg": cfg,
                 "table_name": table_name,
-                "mode": "edit",
+                "mode": "create",
                 "item_id": None,
                 "fields": fields,
                 "values": values,
