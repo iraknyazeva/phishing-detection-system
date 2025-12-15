@@ -5,6 +5,19 @@ from typing import Dict, Any
 
 
 IP_REGEX = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
+KNOWN_SHORTENERS = {
+    "bit.ly",
+    "t.co",
+    "tinyurl.com",
+    "goo.gl",
+    "is.gd",
+    "buff.ly",
+    "ow.ly",
+    "rebrand.ly",
+    "cutt.ly",
+    "shorturl.at",
+    "clck.ru",
+}
 
 
 def extract_url_features(url: str) -> Dict[str, Any]:
@@ -35,6 +48,8 @@ def extract_url_features(url: str) -> Dict[str, Any]:
     features["domain_is_ip"] = bool(IP_REGEX.match(domain))
     features["domain_dot_count"] = domain.count(".")
     features["domain_dash_count"] = domain.count("-")
+    base_domain = domain.lower()
+    features["domain_is_shortener"] = base_domain in KNOWN_SHORTENERS
 
     suspicious_keywords = ["login", "secure", "update", "verify", "account"]
     lower_domain = domain.lower()

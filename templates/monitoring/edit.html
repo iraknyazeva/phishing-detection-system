@@ -1,0 +1,40 @@
+{% include "monitoring/layout.html" %}
+{% block content %}
+  <h1>
+    {% if mode=="create" %}Создать{% else %}Редактировать{% endif %}
+    {{ cfg.title }}
+    {% if item_id %}#{{ item_id }}{% endif %}
+  </h1>
+
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <div class="section">
+    <form method="post" action="{% if mode=='create' %}/monitoring/{{table_name}}/create{% else %}/monitoring/{{table_name}}/{{item_id}}/edit{% endif %}">
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px;max-width:900px">
+
+        {% for col in fields %}
+          <div class="muted" style="align-self:center">{{ col.name }}</div>
+
+          {% if col.type.__class__.__name__ in ["JSON"] %}
+            <textarea name="{{col.name}}" rows="4" style="width:100%">{{ values.get(col.name, "") }}</textarea>
+          {% elif col.type.__class__.__name__ in ["Boolean"] %}
+            <select name="{{col.name}}">
+              <option value="true" {% if values.get(col.name)==True or values.get(col.name)=="true" %}selected{% endif %}>true</option>
+              <option value="false" {% if values.get(col.name)==False or values.get(col.name)=="false" %}selected{% endif %}>false</option>
+            </select>
+          {% else %}
+            <input name="{{col.name}}" value="{{ values.get(col.name, '') }}" style="width:100%">
+          {% endif %}
+        {% endfor %}
+
+      </div>
+
+      <div class="actions-row" style="margin-top:14px">
+        <button type="submit">Сохранить</button>
+        <a class="btn-secondary" href="/monitoring/{{table_name}}{% if item_id %}/{{item_id}}{% endif %}">Отмена</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

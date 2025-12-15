@@ -1,0 +1,85 @@
+
+{% include "monitoring/layout.html" %}
+{% block content %}
+  <h1>{{ cfg.title }}</h1>
+
+  <div class="section">
+    <form method="get" action="/monitoring/{{table_name}}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="text" name="q" placeholder="Поиск..." value="{{ q }}" style="min-width:240px">
+      <input type="text" name="date_from" placeholder="date_from (YYYY-MM-DD)" value="{{ filters.date_from }}" style="min-width:190px">
+      <input type="text" name="date_to" placeholder="date_to (YYYY-MM-DD)" value="{{ filters.date_to }}" style="min-width:190px">
+
+      {% if "user_id" in cfg.list_columns %}
+        <input type="number" name="user_id" placeholder="user_id" value="{{ filters.user_id or '' }}" style="width:120px">
+      {% endif %}
+
+      {% if "status" in cfg.list_columns %}
+        <input type="text" name="status" placeholder="status" value="{{ filters.status or '' }}" style="width:140px">
+      {% endif %}
+
+      {% if "level" in cfg.list_columns %}
+        <input type="text" name="level" placeholder="level" value="{{ filters.level or '' }}" style="width:140px">
+      {% endif %}
+
+      {% if "is_verified" in cfg.list_columns %}
+        <select name="is_verified">
+          <option value="">is_verified: any</option>
+          <option value="true" {% if filters.is_verified=="true" %}selected{% endif %}>true</option>
+          <option value="false" {% if filters.is_verified=="false" %}selected{% endif %}>false</option>
+        </select>
+      {% endif %}
+
+      {% if "is_active" in cfg.list_columns %}
+        <select name="is_active">
+          <option value="">is_active: any</option>
+          <option value="true" {% if filters.is_active=="true" %}selected{% endif %}>true</option>
+          <option value="false" {% if filters.is_active=="false" %}selected{% endif %}>false</option>
+        </select>
+      {% endif %}
+
+      <input type="number" name="page" value="{{ page }}" style="width:90px">
+      <input type="number" name="per_page" value="{{ per_page }}" style="width:110px">
+
+      <button type="submit">Фильтр</button>
+
+      {% if not cfg.readonly %}
+        <a class="btn-secondary" href="/monitoring/{{table_name}}/create">+ Создать</a>
+      {% endif %}
+    </form>
+
+    <div class="muted" style="margin-top:10px">
+      Всего: {{ total }} | Страница {{ page }}
+    </div>
+  </div>
+
+  <div class="section">
+    <table border="0" cellpadding="0" cellspacing="0" style="width:100%">
+      <thead>
+        <tr>
+          {% for c in cfg.list_columns %}
+            <th style="text-align:left;padding:10px;border-bottom:1px solid #1e293b">{{ c }}</th>
+          {% endfor %}
+          <th style="text-align:left;padding:10px;border-bottom:1px solid #1e293b">Действия</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            {% for c in cfg.list_columns %}
+              <td style="padding:10px;border-bottom:1px solid #1e293b;vertical-align:top">
+                {{ r | attr(c) }}
+              </td>
+            {% endfor %}
+            <td style="padding:10px;border-bottom:1px solid #1e293b">
+              <a class="link" href="/monitoring/{{table_name}}/{{r.id}}">Открыть</a>
+              {% if not cfg.readonly %}
+                <span class="muted">|</span>
+                <a class="link" href="/monitoring/{{table_name}}/{{r.id}}/edit">Редактировать</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

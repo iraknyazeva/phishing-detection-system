@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>Привязка Telegram</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <div><a class="link" href="/dashboard">← Назад в ЛК</a></div>
+    <div><a class="link" href="/logout">Выйти</a></div>
+  </div>
+
+  <h1>Привязка Telegram</h1>
+
+  {% if link and link.is_verified and link.chat_id %}
+    <div class="kv">
+      <div class="kv-row"><div class="kv-key">Статус</div><div class="kv-val">✅ Привязан</div></div>
+      <div class="kv-row"><div class="kv-key">Chat ID</div><div class="kv-val">{{ link.chat_id }}</div></div>
+    </div>
+
+    <div class="section">
+      <div class="actions-row">
+        <button type="button" id="tg-unlink" class="btn-secondary">Отвязать</button>
+      </div>
+      <div id="tg-msg" class="tg-msg"></div>
+    </div>
+
+  {% else %}
+    <div class="kv">
+      <div class="kv-row"><div class="kv-key">Статус</div><div class="kv-val">❌ Не привязан</div></div>
+    </div>
+
+    <div class="section">
+      <p class="muted" style="margin-top:0">
+        1) Откройте бота (по ссылке или QR) и нажмите <b>Start</b><br>
+        2) Отправьте боту <b>код</b> сообщением (просто <b>TG-XXXXXX</b>)<br>
+        3) Нажмите <b>«Проверить привязку»</b> на сайте
+      </p>
+
+      <div class="actions-row">
+        <button type="button" id="tg-start" class="btn-secondary">Привязать (получить код)</button>
+        <button type="button" id="tg-finish" class="btn-secondary">Проверить привязку</button>
+      </div>
+
+      <div id="tg-code" class="kv" style="display:none;margin-top:12px"></div>
+
+      <div id="tg-open" style="display:none;margin-top:12px">
+        <div class="actions-row">
+          <a id="tg-link" class="link" href="#" target="_blank" rel="noopener">🔗 Открыть Telegram-бота</a>
+          <button type="button" id="tg-copy" class="btn-secondary">Скопировать код</button>
+        </div>
+
+        <div style="margin-top:10px">
+          <div class="muted" style="margin-bottom:8px">📷 QR-код для открытия бота:</div>
+          <img id="tg-qr" src="/telegram/link/qr" alt="QR Telegram" style="max-width:220px;border-radius:12px;border:1px solid #1e293b">
+        </div>
+
+        <div class="muted" style="margin-top:10px">
+          Вручную: найдите бота по имени <b>@{{ tg_bot_username }}</b> (если задано) или через ссылку выше.
+        </div>
+      </div>
+
+      <div id="tg-msg" class="muted" style="margin-top:10px"></div>
+    </div>
+  {% endif %}
+</div>
+
+<script src="/static/js/telegram_link.js"></script>
+</body>
+</html>
