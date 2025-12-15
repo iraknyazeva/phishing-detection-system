@@ -1,0 +1,17 @@
+{% include "monitoring/layout.html" %}
+{% block content %}
+  <h1>{{ cfg.title }} #{{ row.id }}</h1>
+
+  <div class="section">
+    <div class="actions-row">
+      <a class="btn-secondary" href="/monitoring/{{table_name}}">← Назад</a>
+      {% if not cfg.readonly %}
+        <a class="btn-secondary" href="/monitoring/{{table_name}}/{{row.id}}/edit">Редактировать</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="section result-card">
+    <pre class="json-block" style="display:block">{{ data | tojson(indent=2) }}</pre>
+  </div>
+{% endblock %}

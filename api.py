@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from fastapi.encoders import jsonable_encoder
 import json
 from email.mime.application import MIMEApplication
+from fastapi.encoders import jsonable_encoder
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -66,6 +67,9 @@ from database.models.analysis_sessions import AnalysisSession
 from database.models.url_analysis import URLAnalysisResult
 from database.models.email_analysis import EmailAnalysisResult
 from database.models.system_logs import SystemLog
+from database.models.indicator import Indicator
+from database.models.risk_rules import RiskRule
+from database.models.telegram_links import TelegramLink
 # ====================================================
 
 app = FastAPI(
@@ -110,6 +114,8 @@ def get_db():
         db.close()
 
 
+from fastapi.encoders import jsonable_encoder
+
 def log_event(
     db: Session,
     *,
@@ -127,6 +133,9 @@ def log_event(
     extra_data: dict | None = None,
     tags: list | None = None,
 ):
+    safe_extra = jsonable_encoder(extra_data) if extra_data is not None else None
+    safe_tags = jsonable_encoder(tags) if tags is not None else None
+
     entry = SystemLog(
         level=level,
         logger=logger,
@@ -139,11 +148,12 @@ def log_event(
         request_id=request_id,
         ip_address=ip_address,
         user_agent=user_agent,
-        extra_data=extra_data,
-        tags=tags,
+        extra_data=safe_extra,
+        tags=safe_tags,
     )
     db.add(entry)
     db.commit()
+
 
 
 def authenticate_user(db: Session, username: str, password: str) -> User | None:
@@ -176,6 +186,7 @@ def require_roles(*allowed: str):
 
 
 admin_required = require_roles(ROLE_ADMIN)
+monitoring_required = require_roles(ROLE_MONITORING, ROLE_ADMIN)
 
 
 def ensure_active_session(db: Session, request: Request, user: User) -> AnalysisSession:
@@ -265,6 +276,534 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depe
             "session": sess,
         }
     )
+
+
+
+
+
+##################################
+from sqlalchemy import or_, and_
+from sqlalchemy.inspection import inspect
+from sqlalchemy.types import Integer, Float, Boolean, JSON as SAJSON, DateTime, String, Text
+from starlette.responses import Response
+
+# --------------------------
+# MONITORING CONFIG
+# --------------------------
+
+MONITOR_TABLES = {
+    "analysis_sessions": {
+        "title": "Analysis Sessions",
+        "model": AnalysisSession,
+        "readonly": True,
+        "date_field": "created_at",
+        "list_columns": ["id", "user_id", "session_type", "total_checks", "risky_found", "created_at", "completed_at"],
+        "search_fields": [],
+    },
+    "url_analysis": {
+        "title": "URL Analysis Results",
+        "model": URLAnalysisResult,
+        "readonly": True,
+        "date_field": "analyzed_at",
+        "list_columns": ["id", "url", "domain", "status", "risk_score", "analyzed_at", "hash"],
+        "search_fields": ["url", "domain", "final_url"],
+    },
+    "email_analysis": {
+        "title": "Email Analysis Results",
+        "model": EmailAnalysisResult,
+        "readonly": True,
+        "date_field": "analyzed_at",
+        "list_columns": ["id", "email_from", "email_subject", "status", "risk_score", "analyzed_at", "email_hash"],
+        "search_fields": ["email_from", "email_subject", "message_id"],
+    },
+    "system_logs": {
+        "title": "System Logs",
+        "model": SystemLog,
+        "readonly": True,
+        "date_field": "timestamp",
+        "list_columns": ["id", "timestamp", "level", "module", "operation", "user_id", "message"],
+        "search_fields": ["logger", "module", "operation", "message"],
+    },
+    "telegram_links": {
+        "title": "Telegram Links",
+        "model": TelegramLink,
+        "readonly": True,
+        "date_field": "created_at",
+        "list_columns": ["id", "user_id", "chat_id", "is_verified", "created_at", "updated_at"],
+        "search_fields": [],
+    },
+    "indicators": {
+        "title": "Indicators",
+        "model": Indicator,
+        "readonly": False,
+        "date_field": "created_at",
+        "list_columns": ["id", "type", "value", "risk_score", "category", "source", "is_active", "is_whitelisted", "created_at"],
+        "search_fields": ["type", "value", "category", "source"],
+    },
+    "risk_rules": {
+        "title": "Risk Rules",
+        "model": RiskRule,
+        "readonly": False,
+        "date_field": "created_at",
+        "list_columns": ["id", "name", "feature", "operator", "threshold", "risk_points", "status_override", "applies_to", "is_active", "created_at"],
+        "search_fields": ["name", "feature", "operator", "applies_to", "status_override"],
+    },
+}
+
+FORBIDDEN_EDIT_FIELDS = {"id", "created_at", "updated_at"}
+
+
+def _parse_dt(s: str | None):
+    if not s:
+        return None
+    # ожидаем YYYY-MM-DD или YYYY-MM-DDTHH:MM
+    try:
+        return datetime.fromisoformat(s)
+    except Exception:
+        return None
+
+
+def _safe_json_loads(s: str | None):
+    if not s or not s.strip():
+        return None
+    return json.loads(s)
+
+
+def _coerce_value(col, raw: str):
+    """
+    Приводим строку из формы к типу колонки.
+    """
+    # ✅ пустые значения и "None/null" -> None
+    if raw is None:
+        return None
+    raw = str(raw).strip()
+    if raw == "" or raw.lower() in ("none", "null", "nil"):
+        return None
+
+
+    if raw is None:
+        return None
+
+    raw = raw.strip()
+
+    # пустая строка -> None (для nullable)
+    if raw == "":
+        return None
+
+    t = col.type
+
+    # Boolean
+    if isinstance(t, Boolean):
+        # из формы придёт "on" либо "true"/"false"
+        return raw.lower() in ("1", "true", "on", "yes", "да")
+
+    # Integer
+    if isinstance(t, Integer):
+        return int(raw)
+
+    # Float
+    if isinstance(t, Float):
+        return float(raw)
+
+    # JSON
+    if isinstance(t, SAJSON):
+        return _safe_json_loads(raw)
+
+    # DateTime
+    if isinstance(t, DateTime):
+        # isoformat
+        return datetime.fromisoformat(raw)
+
+    # default: string/text
+    return raw
+
+
+def _model_columns(model):
+    return [c for c in model.__table__.columns]
+
+
+def _editable_fields(model):
+    cols = _model_columns(model)
+    return [c for c in cols if c.name not in FORBIDDEN_EDIT_FIELDS]
+
+
+# --------------------------
+# MONITORING PAGES
+# --------------------------
+
+@app.get("/monitoring")
+def monitoring_home(
+    request: Request,
+    user: User = Depends(monitoring_required),
+):
+    return templates.TemplateResponse(
+        "monitoring/home.html",
+        {"request": request, "user": user, "tables": MONITOR_TABLES}
+    )
+
+
+@app.get("/monitoring/{table_name}")
+def monitoring_list(
+    table_name: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(monitoring_required),
+    q: str | None = None,
+    user_id: int | None = None,
+    status: str | None = None,
+    level: str | None = None,
+    is_verified: str | None = None,
+    is_active: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page: int = 1,
+    per_page: int = 20,
+):
+    cfg = MONITOR_TABLES.get(table_name)
+    if not cfg:
+        raise HTTPException(404, "Unknown table")
+
+    model = cfg["model"]
+    date_field = getattr(model, cfg["date_field"], None)
+
+    query = db.query(model)
+
+    # --- common filters ---
+    if q and cfg["search_fields"]:
+        parts = []
+        for f in cfg["search_fields"]:
+            col = getattr(model, f, None)
+            if col is not None:
+                parts.append(col.ilike(f"%{q}%"))
+        if parts:
+            query = query.filter(or_(*parts))
+
+    if user_id is not None and hasattr(model, "user_id"):
+        query = query.filter(getattr(model, "user_id") == user_id)
+
+    if status and hasattr(model, "status"):
+        query = query.filter(getattr(model, "status") == status)
+
+    if level and hasattr(model, "level"):
+        query = query.filter(getattr(model, "level") == level)
+
+    if is_verified is not None and hasattr(model, "is_verified"):
+        if is_verified in ("true", "1", "yes"):
+            query = query.filter(getattr(model, "is_verified") == True)
+        elif is_verified in ("false", "0", "no"):
+            query = query.filter(getattr(model, "is_verified") == False)
+
+    if is_active is not None and hasattr(model, "is_active"):
+        if is_active in ("true", "1", "yes"):
+            query = query.filter(getattr(model, "is_active") == True)
+        elif is_active in ("false", "0", "no"):
+            query = query.filter(getattr(model, "is_active") == False)
+
+    # date range
+    df = _parse_dt(date_from)
+    dt = _parse_dt(date_to)
+    if date_field is not None:
+        if df:
+            query = query.filter(date_field >= df)
+        if dt:
+            query = query.filter(date_field <= dt)
+
+    total = query.count()
+
+    # ordering: newest first if possible
+    if date_field is not None:
+        query = query.order_by(date_field.desc())
+    else:
+        query = query.order_by(getattr(model, "id").desc())
+
+    # pagination
+    if page < 1:
+        page = 1
+    if per_page < 5:
+        per_page = 5
+    if per_page > 200:
+        per_page = 200
+
+    rows = query.offset((page - 1) * per_page).limit(per_page).all()
+
+    return templates.TemplateResponse(
+        "monitoring/list.html",
+        {
+            "request": request,
+            "user": user,
+            "tables": MONITOR_TABLES,  # 🔴 ВАЖНО
+            "cfg": cfg,
+            "table_name": table_name,
+            "rows": rows,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "q": q or "",
+            "filters": {
+                "user_id": user_id,
+                "status": status,
+                "level": level,
+                "is_verified": is_verified,
+                "is_active": is_active,
+                "date_from": date_from or "",
+                "date_to": date_to or "",
+            },
+        }
+    )
+
+
+@app.get("/monitoring/{table_name}/{item_id:int}")
+def monitoring_detail(
+    table_name: str,
+    item_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(monitoring_required),
+):
+    cfg = MONITOR_TABLES.get(table_name)
+    if not cfg:
+        raise HTTPException(404, "Unknown table")
+
+    model = cfg["model"]
+    row = db.query(model).filter(getattr(model, "id") == item_id).first()
+    if not row:
+        raise HTTPException(404, "Not found")
+
+    # выгружаем все колонки
+    data = {c.name: getattr(row, c.name) for c in model.__table__.columns}
+    data = jsonable_encoder(data)  # ✅ datetime -> строка, всё JSON-safe
+    return templates.TemplateResponse(
+        "monitoring/detail.html",
+        {
+            "request": request,
+            "user": user,
+            "tables": MONITOR_TABLES,  # 🔴 ВАЖНО
+            "cfg": cfg,
+            "table_name": table_name,
+            "row": row,
+            "data": data,
+        }
+    )
+
+
+# --------------------------
+# EDITABLE: indicators & risk_rules
+# --------------------------
+
+@app.get("/monitoring/{table_name}/create")
+def monitoring_create_page(
+    table_name: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(monitoring_required),
+):
+    cfg = MONITOR_TABLES.get(table_name)
+    if not cfg or cfg["readonly"]:
+        raise HTTPException(404, "Not editable")
+
+    model = cfg["model"]
+    fields = _editable_fields(model)
+
+    return templates.TemplateResponse(
+        "monitoring/edit.html",
+        {
+            "request": request,
+            "user": user,
+            "tables": MONITOR_TABLES,  # 🔴 ВАЖНО
+            "cfg": cfg,
+            "table_name": table_name,
+            "mode": "create",
+            "item_id": None,
+            "fields": fields,
+            "values": {},
+            "error": None,
+        }
+    )
+
+@app.post("/monitoring/{table_name}/create")
+async def monitoring_create_submit(
+    table_name: str,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(monitoring_required),
+):
+    cfg = MONITOR_TABLES.get(table_name)
+    if not cfg or cfg["readonly"]:
+        raise HTTPException(404, "Not editable")
+
+    model = cfg["model"]
+    fields = _editable_fields(model)
+
+    form = await request.form()
+    form = dict(form)
+
+    obj = model()
+    before = None
+
+    try:
+        for col in fields:
+            if col.name in form:
+                setattr(obj, col.name, _coerce_value(col, str(form[col.name])))
+        # если у RiskRule есть created_by — выставим текущего пользователя, если поле существует
+        if hasattr(obj, "created_by") and getattr(obj, "created_by", None) is None:
+            setattr(obj, "created_by", user.id)
+
+        db.add(obj)
+        db.commit()
+
+        log_event(
+            db,
+            level="info",
+            logger="monitoring",
+            message=f"Created {table_name} id={obj.id}",
+            module="monitoring",
+            operation=f"create_{table_name}",
+            user_id=user.id,
+            extra_data={"after": {c.name: getattr(obj, c.name) for c in model.__table__.columns}},
+            tags=["monitoring", table_name, "create"],
+        )
+
+        return RedirectResponse(url=f"/monitoring/{table_name}/{obj.id}", status_code=302)
+    except Exception as e:
+        db.rollback()
+        values = {c.name: form.get(c.name, getattr(obj, c.name)) for c in fields}
+        return templates.TemplateResponse(
+            "monitoring/edit.html",
+            {
+                "request": request,
+                "user": user,
+                "tables": MONITOR_TABLES,  # ✅ ДОБАВИТЬ
+                "cfg": cfg,
+                "table_name": table_name,
+                "mode": "edit",
+                "item_id": None,
+                "fields": fields,
+                "values": values,
+                "error": str(e),
+            },
+            status_code=400,
+        )
+
+
+@app.get("/monitoring/{table_name}/{item_id:int}/edit")
+def monitoring_edit_page(
+    table_name: str,
+    item_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(monitoring_required),
+):
+    cfg = MONITOR_TABLES.get(table_name)
+    if not cfg or cfg["readonly"]:
+        raise HTTPException(404, "Not editable")
+
+    model = cfg["model"]
+    obj = db.query(model).filter(getattr(model, "id") == item_id).first()
+    if not obj:
+        raise HTTPException(404, "Not found")
+
+    fields = _editable_fields(model)
+    values = {c.name: getattr(obj, c.name) for c in fields}
+
+    return templates.TemplateResponse(
+        "monitoring/edit.html",
+        {
+            "request": request,
+            "user": user,
+            "tables": MONITOR_TABLES,  # 🔴 ВАЖНО
+            "cfg": cfg,
+            "table_name": table_name,
+            "mode": "edit",
+            "item_id": item_id,
+            "fields": fields,
+            "values": values,
+            "error": None,
+        }
+    )
+
+
+from fastapi.responses import RedirectResponse
+from starlette.status import HTTP_302_FOUND
+
+@app.post("/monitoring/{table_name}/{item_id:int}/edit")
+async def monitoring_edit_submit(
+    table_name: str,
+    item_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(monitoring_required),
+):
+    cfg = MONITOR_TABLES.get(table_name)
+    if not cfg or cfg["readonly"]:
+        raise HTTPException(404, "Not editable")
+
+    model = cfg["model"]
+    obj = db.query(model).filter(getattr(model, "id") == item_id).first()
+    if not obj:
+        raise HTTPException(404, "Not found")
+
+    fields = _editable_fields(model)
+
+    # ✅ ВАЖНО: form — async
+    form = await request.form()
+    form = dict(form)
+
+    before = {c.name: getattr(obj, c.name) for c in model.__table__.columns}
+
+    try:
+        for col in fields:
+            if col.name in form:
+                setattr(obj, col.name, _coerce_value(col, str(form[col.name])))
+
+        db.add(obj)
+        db.commit()
+
+        after = {c.name: getattr(obj, c.name) for c in model.__table__.columns}
+        try:
+            log_event(
+                db,
+                level="info",
+                logger="monitoring",
+                message=f"Updated {table_name} id={obj.id}",
+                module="monitoring",
+                operation=f"update_{table_name}",
+                user_id=user.id,
+                extra_data={"before": before, "after": after},
+                tags=["monitoring", table_name, "update"],
+            )
+        except Exception as e:
+            print("log_event failed:", e)
+
+        return RedirectResponse(url=f"/monitoring/{table_name}/{obj.id}", status_code=HTTP_302_FOUND)
+
+    except Exception as e:
+        db.rollback()
+        values = {c.name: form.get(c.name, getattr(obj, c.name)) for c in fields}
+        return templates.TemplateResponse(
+            "monitoring/edit.html",
+            {
+                "request": request,
+                "user": user,
+                "tables": MONITOR_TABLES,  # ✅ добавь
+                "cfg": cfg,
+                "table_name": table_name,
+                "mode": "edit",
+                "item_id": item_id,
+                "fields": fields,
+                "values": values,
+                "error": str(e),
+            },
+            status_code=400,
+        )
+
+
+###############################
+
+
+
+
+
+
 
 @app.get("/check/url")
 def check_url_page(request: Request, user: User = Depends(get_current_user)):
@@ -844,6 +1383,6 @@ def telegram_unlink(db: Session = Depends(get_db), user: User = Depends(get_curr
 
 
 if __name__ == "__main__":
-    uvicorn.run("api:app", host="10.8.0.2", port=8000, reload=True)
+    uvicorn.run("api:app", host="127.0.0.1", port=80, reload=True)
 
 
