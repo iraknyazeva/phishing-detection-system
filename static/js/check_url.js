@@ -277,8 +277,9 @@ if (sendTgBtn) {
 
 
 
+// ===== Batch URL check (ONE request to /analyze/url/batch) =====
+let lastBatchResult = null;
 
-// ===== Batch URL check =====
 document.addEventListener("DOMContentLoaded", () => {
   const batchFile = document.getElementById("batch-file");
   const batchRun = document.getElementById("batch-run");
@@ -287,17 +288,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const batchTable = document.getElementById("batch-table");
   const batchTbody = document.getElementById("batch-tbody");
 
-  if (!batchRun) return; // если на странице нет блока — просто выходим
+  const batchSendBlock = document.getElementById("send-batch-block");
+  const batchSendEmail = document.getElementById("send-batch-email");
+  const batchSendBtn = document.getElementById("send-batch-btn");
+  const batchSendTgBtn = document.getElementById("send-batch-tg-btn");
+  const batchSendMsg = document.getElementById("send-batch-msg");
 
-  function addRow(url, status, risk) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td style="padding:8px;border-top:1px solid #1e293b">${escapeHtml(url)}</td>
-      <td style="padding:8px;border-top:1px solid #1e293b">${escapeHtml(String(status ?? ""))}</td>
-      <td style="padding:8px;border-top:1px solid #1e293b">${escapeHtml(String(risk ?? ""))}</td>
-    `;
-    batchTbody.appendChild(tr);
-  }
+  if (!batchRun) return;
 
   function escapeHtml(s) {
     return String(s)
@@ -308,11 +305,23 @@ document.addEventListener("DOMContentLoaded", () => {
       .replaceAll("'", "&#039;");
   }
 
+  function addRow(r) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td style="padding:8px;border-top:1px solid #1e293b">${escapeHtml(r.url ?? "—")}</td>
+      <td style="padding:8px;border-top:1px solid #1e293b">${escapeHtml(String(r.status ?? (r.error ? "error" : "—")))}</td>
+      <td style="padding:8px;border-top:1px solid #1e293b">${escapeHtml(String(r.risk_score ?? "—"))}</td>
+    `;
+    batchTbody.appendChild(tr);
+  }
+
   batchRun.addEventListener("click", async () => {
     batchError.textContent = "";
     batchProgress.textContent = "";
     batchTbody.innerHTML = "";
     batchTable.style.display = "none";
+    if (batchSendBlock) batchSendBlock.style.display = "none";
+    if (batchSendMsg) batchSendMsg.textContent = "";
 
     const f = batchFile.files && batchFile.files[0];
     if (!f) {
@@ -320,55 +329,92 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    let text = "";
-    try {
-      text = await f.text();
-    } catch (e) {
-      batchError.textContent = "Не удалось прочитать файл.";
-      return;
-    }
-
-    const urls = text
-      .split(/\r?\n/)
-      .map(x => x.trim())
-      .filter(x => x && !x.startsWith("#"));
-
-    if (urls.length === 0) {
-      batchError.textContent = "Файл пустой или в нём нет строк с URL.";
-      return;
-    }
-
-    batchTable.style.display = "";
     batchRun.disabled = true;
+    batchProgress.textContent = "Отправляю файл на пакетную проверку...";
 
-    for (let i = 0; i < urls.length; i++) {
-      const url = urls[i];
-      batchProgress.textContent = `Проверяю ${i + 1} / ${urls.length}...`;
+    try {
+      const formData = new FormData();
+      formData.append("file", f);
 
+      const resp = await fetch("/analyze/url/batch", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!resp.ok) {
+        const t = await resp.text();
+        throw new Error(t || `HTTP ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      lastBatchResult = data;
+
+      batchTable.style.display = "";
+      (data.results || []).forEach(addRow);
+
+      batchProgress.textContent = `Готово: всего ${data.total}, успешно ${data.ok}, ошибок ${data.failed}`;
+      if (batchSendBlock) batchSendBlock.style.display = "block";
+
+    } catch (e) {
+      batchError.textContent = "Ошибка пакетной проверки: " + String(e?.message || e);
+      batchProgress.textContent = "";
+    } finally {
+      batchRun.disabled = false;
+    }
+  });
+
+  // Скачать общий JSON
+  const batchDownloadBtn = document.getElementById("batch-download-btn");
+  if (batchDownloadBtn) {
+    batchDownloadBtn.addEventListener("click", () => {
+      if (!lastBatchResult) return;
+      downloadJson(lastBatchResult, "url_batch_result");
+    });
+  }
+
+  // Отправить общий JSON на почту
+  if (batchSendBtn) {
+    batchSendBtn.addEventListener("click", async () => {
+      const email = batchSendEmail?.value?.trim();
+      if (!email) { if (batchSendMsg) batchSendMsg.textContent = "Введите email."; return; }
+      if (!lastBatchResult) { if (batchSendMsg) batchSendMsg.textContent = "Сначала выполните пакетную проверку."; return; }
+
+      if (batchSendMsg) batchSendMsg.textContent = "Отправка...";
       try {
-        const body = new URLSearchParams();
-        body.set("url", url);
-
-        const r = await fetch("/analyze/url", {
+        const r = await fetch("/send-report", {
           method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ email, type: "url_batch", result: lastBatchResult })
+        });
+        if (batchSendMsg) batchSendMsg.textContent = r.ok ? "Отправлено ✅" : "Ошибка отправки ❌";
+      } catch (_) {
+        if (batchSendMsg) batchSendMsg.textContent = "Ошибка отправки ❌";
+      }
+    });
+  }
+
+  // Отправить общий JSON в Telegram
+  if (batchSendTgBtn) {
+    batchSendTgBtn.addEventListener("click", async () => {
+      if (!lastBatchResult) { if (batchSendMsg) batchSendMsg.textContent = "Сначала выполните пакетную проверку."; return; }
+
+      if (batchSendMsg) batchSendMsg.textContent = "Отправка в Telegram...";
+      try {
+        const r = await fetch("/send-report/telegram", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ type: "url_batch", result: lastBatchResult })
         });
 
-        if (!r.ok) {
-          const t = await r.text();
-          addRow(url, `HTTP ${r.status}`, t.slice(0, 120));
-          continue;
+        if (r.ok) {
+          if (batchSendMsg) batchSendMsg.textContent = "Отправлено в Telegram ✅";
+        } else {
+          const data = await r.json().catch(() => ({}));
+          if (batchSendMsg) batchSendMsg.textContent = data.detail || "Ошибка отправки в Telegram ❌";
         }
-
-        const data = await r.json();
-        addRow(url, data.status, data.risk_score);
-      } catch (e) {
-        addRow(url, "error", String(e));
+      } catch (_) {
+        if (batchSendMsg) batchSendMsg.textContent = "Ошибка отправки в Telegram ❌";
       }
-    }
-
-    batchProgress.textContent = `Готово: ${urls.length} шт.`;
-    batchRun.disabled = false;
-  });
+    });
+  }
 });

@@ -1199,6 +1199,20 @@ def send_email_report(to_email: str, subject: str, html_body: str, json_data: di
             server.send_message(msg)
 
 def build_report_email(kind: str, data: dict) -> str:
+    if kind == "url_batch":
+        return f"""
+        <div style="font-family:system-ui,Segoe UI,sans-serif;background:#0f172a;padding:24px">
+          <div style="max-width:640px;margin:auto;background:#020617;border-radius:16px;
+                      padding:24px;border:1px solid #1e293b;color:#e5e7eb">
+            <h2 style="margin-top:0">📦 Пакетная проверка URL</h2>
+            <p>Всего: <b>{data.get("total","—")}</b>,
+               успешно: <b>{data.get("ok","—")}</b>,
+               ошибок: <b>{data.get("failed","—")}</b></p>
+            <p style="font-size:13px;color:#94a3b8">📎 Полный отчёт приложен JSON.</p>
+          </div>
+        </div>
+        """
+    # дальше твой старый код для url/email...
     status = data.get("status", "unknown")
     risk = data.get("risk_score", "?")
 
@@ -1260,7 +1274,7 @@ def send_report(
     data = payload.get("result")
     kind = payload.get("type")  # "url" | "email"
 
-    if not email or not data or kind not in ("url", "email"):
+    if not email or not data or kind not in ("url", "email", "url_batch"):
         raise HTTPException(status_code=400, detail="Некорректные данные")
 
     html = build_report_email(kind, data)
@@ -1280,6 +1294,17 @@ def send_report(
 #telegram
 
 def build_report_text(kind: str, data: dict) -> str:
+    if kind == "url_batch":
+        return "\n".join([
+            "<b>📦 Пакетная проверка URL</b>",
+            "",
+            f"<b>Всего:</b> {data.get('total','—')}",
+            f"<b>Успешно:</b> {data.get('ok','—')}",
+            f"<b>Ошибок:</b> {data.get('failed','—')}",
+            "",
+            "📎 Полный отчёт — JSON во вложении.",
+        ])
+    # дальше твой старый код для url/email...
     status = str(data.get("status", "unknown"))
     risk = data.get("risk_score", "?")
     duration = data.get("analysis_duration", "—")
@@ -1432,7 +1457,30 @@ def telegram_link_finish(
             link.code_expires_at = None
 
             db.add(link)
-            db.commit()
+            try:
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+                log_event(
+                    db,
+                    level="warning",
+                    logger="telegram",
+                    message="Telegram chat_id already linked to another user",
+                    module="telegram",
+                    operation="link_finish",
+                    user_id=user.id,
+                    extra_data={"chat_id": str(chat_id)},
+                    tags=["telegram", "link", "error"],
+                )
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "ok": False,
+                        "detail": "Этот Telegram уже привязан к другой учётной записи"
+                    }
+                )
+
+
             return {"ok": True, "chat_id": str(chat_id)}
 
     return {
@@ -1448,7 +1496,7 @@ def send_report_telegram(payload: dict, db: Session = Depends(get_db), user: Use
     kind = payload.get("type")   # url | email
     result = payload.get("result")
 
-    if kind not in ("url", "email") or not result:
+    if kind not in ("url", "email", "url_batch") or not result:
         raise HTTPException(400, "Некорректные данные")
 
     link = db.query(TelegramLink).filter(TelegramLink.user_id == user.id, TelegramLink.is_verified == True).first()
