@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>Проверка URL</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <div><a class="link" href="/dashboard">← Назад в ЛК</a></div>
+    <div><a class="link" href="/logout">Выйти</a></div>
+  </div>
+
+  <h1>Проверка URL</h1>
+
+  <div class="section">
+    <form id="url-form">
+      <input type="text" name="url" id="url-input" placeholder="https://example.com" />
+      <button type="submit" id="url-btn">Проверить</button>
+    </form>
+
+    <div id="url-error" class="error"></div>
+
+    <div id="url-result" class="result-card" style="display:none;"></div>
+
+    <!-- Отправка результата  -->
+    <div id="send-url-block" style="display:none;margin-top:12px">
+        <div class="actions-row">
+          <input type="email" id="send-url-email" placeholder="Введите email для отправки" style="flex:1;min-width:240px">
+          <button type="button" id="send-url-btn" class="btn-secondary">Отправить на почту</button>
+          <button type="button" id="send-url-tg-btn" class="btn-secondary">Отправить в Telegram</button>
+        </div>
+        <div id="send-url-msg" class="muted" style="margin-top:8px"></div>
+
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 style="margin-top:0">Пакетная проверка из файла</h2>
+
+    <input type="file" id="batch-file" accept=".txt,.csv" />
+    <button type="button" id="batch-run">Проверить список</button>
+
+    <div id="batch-error" class="error"></div>
+
+    <div id="batch-progress" class="muted" style="margin-top:10px"></div>
+
+    <table id="batch-table" style="width:100%; margin-top:10px; display:none;">
+      <thead>
+        <tr>
+          <th style="text-align:left">URL</th>
+          <th style="text-align:left">Status</th>
+          <th style="text-align:left">Risk</th>
+        </tr>
+      </thead>
+      <tbody id="batch-tbody"></tbody>
+    </table>
+      <div id="send-batch-block" style="display:none;margin-top:12px">
+  <div class="actions-row">
+    <button type="button" id="batch-download-btn" class="btn-secondary">Скачать общий JSON</button>
+
+    <input type="email" id="send-batch-email" placeholder="Введите email для отправки"
+           style="flex:1;min-width:240px">
+
+    <button type="button" id="send-batch-btn" class="btn-secondary">Отправить на почту</button>
+    <button type="button" id="send-batch-tg-btn" class="btn-secondary">Отправить в Telegram</button>
+  </div>
+  <div id="send-batch-msg" class="muted" style="margin-top:8px"></div>
+</div>
+  </div>
+
+
+</div>
+
+
+
+<script src="/static/js/check_url.js"></script>
+</body>
+</html>

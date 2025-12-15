@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>Личный кабинет</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <div>
+      <b>{{ user.username }}</b> (роль: {{ effective_role }})
+      <span class="muted" style="margin-left:12px">
+        Сессия: {{ session.id }} | Проверок: {{ session.total_checks }} | Рисковых: {{ session.risky_found }}
+      </span>
+    </div>
+    <div><a class="link" href="/logout">Выйти</a></div>
+  </div>
+
+  <h1>Личный кабинет</h1>
+
+  <div class="grid">
+    <a class="card" href="/check/url">
+      <div class="card-title">Проверка URL</div>
+      <div class="card-subtitle">Проверка домена, DNS/SSL/WHOIS и индикаторов</div>
+    </a>
+
+    <a class="card" href="/check/email">
+      <div class="card-title">Проверка письма (EML)</div>
+      <div class="card-subtitle">Анализ заголовков, ссылок, признаков фишинга</div>
+    </a>
+
+    {% if effective_role in ["monitoring", "admin"] %}
+    <a class="card" href="/monitoring">
+      <div class="card-title">Мониторинг</div>
+      <div class="card-subtitle">Просмотр инцидентов и статистики (позже)</div>
+    </a>
+    {% endif %}
+
+    {% if effective_role == "admin" %}
+    <a class="card" href="/admin/users">
+      <div class="card-title">Пользователи</div>
+      <div class="card-subtitle">Создание и управление пользователями</div>
+    </a>
+    {% endif %}
+    <a class="card" href="/telegram/link">
+        <div class="card-title">Telegram</div>
+        <div class="card-subtitle">Привязать Telegram для отправки отчётов</div>
+    </a>
+
+  </div>
+</div>
+</body>
+</html>

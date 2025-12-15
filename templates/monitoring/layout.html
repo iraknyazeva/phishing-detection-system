@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <title>{{ cfg.title if cfg else "Мониторинг" }}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="container">
+  <div class="topbar">
+    <div>
+      <a class="link" href="/dashboard">← ЛК</a>
+      <span class="muted">|</span>
+      <a class="link" href="/monitoring">Мониторинг</a>
+    </div>
+    <div><a class="link" href="/logout">Выйти</a></div>
+  </div>
+
+  <div class="section" style="display:flex;gap:10px;flex-wrap:wrap">
+    {% for key, t in tables.items() %}
+      <a class="btn-secondary" href="/monitoring/{{key}}">{{ t.title }}</a>
+    {% endfor %}
+  </div>
+
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>
